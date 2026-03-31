@@ -145,6 +145,14 @@ td{padding:12px 13px;font-size:13px;vertical-align:middle}
   </div>
   <div class="hdr-r">
     <span class="pill live">● Live J-1</span>
+    <div style="display:flex;align-items:center;gap:6px">
+      <input id="apiKey" type="password" placeholder="Clé API Claude (sk-ant-...)"
+        style="padding:7px 12px;border-radius:7px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-family:'Space Mono',monospace;font-size:10px;width:210px;outline:none;transition:border-color .2s"
+        onfocus="this.style.borderColor='var(--purple)'"
+        onblur="this.style.borderColor='var(--border)'"
+        oninput="saveKey(this.value)">
+      <span id="keyIcon" title="Clé stockée localement dans votre navigateur" style="font-size:15px;cursor:help">🔑</span>
+    </div>
     <button class="btn pri" id="rfBtn" onclick="fullRefresh()">⟳ Analyser</button>
   </div>
 </header>
@@ -221,6 +229,7 @@ const PROXIES=[
   u=>`https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
   u=>`https://corsproxy.io/?url=${encodeURIComponent(u)}`,
   u=>`https://proxy.cors.sh/${u}`,
+  u=>`https://thingproxy.freeboard.io/fetch/${u}`,
 ];
 async function fetchP(url){
   for(const mk of PROXIES){try{const r=await fetch(mk(url),{signal:AbortSignal.timeout(8000)});if(r.ok)return await r.text()}catch(e){}}
@@ -341,14 +350,26 @@ function parseAMF(csv){
   return Object.values(m).filter(d=>d.shortPct>=1).sort((a,b)=>b.shortPct-a.shortPct).slice(0,25).map(d=>({...d,tendance30j:+(Math.random()*4-1).toFixed(1),dtc:+(Math.random()*10+1).toFixed(1),volumeSpike:false,prixSpike:false,shortCover:false,price:null,priceDelta:null,hist:null}));
 }
 
+// CLÉ API
+function saveKey(k){localStorage.setItem('claudeKey',k);document.getElementById('keyIcon').textContent=k?'✅':'🔑'}
+function getKey(){return document.getElementById('apiKey').value||localStorage.getItem('claudeKey')||''}
+async function claudeFetch(body){
+  const key=getKey();
+  if(!key){return null}
+  const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify(body)});
+  return await r.json();
+}
+
 // CLAUDE AI ANALYZE
 async function aiAnalyze(d){
   const el=document.getElementById('ai-'+d.isin);if(!el)return;
+  if(!getKey()){el.textContent='⚠️ Saisissez votre clé API Claude dans le champ en haut à droite.';el.classList.remove('ld');return}
   el.textContent='Analyse en cours...';el.classList.add('ld');
   try{
-    const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,messages:[{role:'user',content:`Analyste short squeeze Europe. 3-4 phrases pour: ${d.emetteur} | Short: ${d.shortPct.toFixed(2)}% | Tend30j: ${d.tendance30j>0?'+':''}${d.tendance30j.toFixed(1)}% | DTC: ${d.dtc.toFixed(1)}j | Prix: ${d.price?d.price.toFixed(2)+'€':'N/A'} | VolSpike:${d.volumeSpike?'OUI':'non'} | PrixSpike:${d.prixSpike?'OUI':'non'} | Score:${sc(d)}/100. Structure: (1)Niveau pression (2)Signaux présents/manquants (3)Catalyseur quali à surveiller`}]})});
-    const data=await r.json();el.textContent=data.content?.[0]?.text||'Analyse indisponible.';el.classList.remove('ld');
-  }catch(e){el.textContent='Erreur API Claude.';el.classList.remove('ld')}
+    const data=await claudeFetch({model:'claude-sonnet-4-20250514',max_tokens:1000,messages:[{role:'user',content:`Analyste short squeeze Europe. 3-4 phrases pour: ${d.emetteur} | Short: ${d.shortPct.toFixed(2)}% | Tend30j: ${d.tendance30j>0?'+':''}${d.tendance30j.toFixed(1)}% | DTC: ${d.dtc.toFixed(1)}j | Prix: ${d.price?d.price.toFixed(2)+'€':'N/A'} | VolSpike:${d.volumeSpike?'OUI':'non'} | PrixSpike:${d.prixSpike?'OUI':'non'} | Score:${sc(d)}/100. Structure: (1)Niveau pression (2)Signaux présents/manquants (3)Catalyseur quali à surveiller`}]});
+    if(!data){el.textContent='Clé API manquante.';el.classList.remove('ld');return}
+    el.textContent=data.content?.[0]?.text||'Analyse indisponible.';el.classList.remove('ld');
+  }catch(e){el.textContent='Erreur API Claude: '+e.message;el.classList.remove('ld')}
 }
 
 // NEWS
@@ -357,8 +378,9 @@ async function fetchNews(tickers){
   setDS('ai','wait','Claude AI: news...');
   try{
     const top=tickers.slice(0,5).map(d=>d.emetteur).join(', ');
-    const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,tools:[{type:'web_search_20250305',name:'web_search'}],messages:[{role:'user',content:`Actualités 48h pour ces titres shortés France: ${top}. Focus: annonces corporate, restructuration, État, rachat. JSON uniquement: {"news":[{"ticker":"NOM","headline":"titre","source":"src","date":"JJ/MM","sentiment":"bull|bear|neu","why_matters":"1 phrase"}]}`}]})});
-    const data=await r.json();
+    if(!getKey()){nf.innerHTML='<div class="ni"><div style="color:var(--muted);font-size:11px">⚠️ Saisissez votre clé API Claude pour charger les news.</div></div>';setDS('ai','err','Claude AI: clé manquante');return}
+    const data=await claudeFetch({model:'claude-sonnet-4-20250514',max_tokens:1000,tools:[{type:'web_search_20250305',name:'web_search'}],messages:[{role:'user',content:`Actualités 48h pour ces titres shortés France: ${top}. Focus: annonces corporate, restructuration, État, rachat. JSON uniquement: {"news":[{"ticker":"NOM","headline":"titre","source":"src","date":"JJ/MM","sentiment":"bull|bear|neu","why_matters":"1 phrase"}]}`}]});
+    if(!data){setDS('ai','err','Claude AI: clé manquante');return}
     const txt=data.content?.filter(b=>b.type==='text').map(b=>b.text).join('');
     let news=[];try{news=JSON.parse(txt.replace(/```json|```/g,'').trim()).news||[]}catch(e){}
     if(!news.length){nf.innerHTML='<div class="ni"><div style="color:var(--muted);font-size:11px">Aucune actualité significative.</div></div>';setDS('ai','ok','Claude AI: ✓');return}
@@ -382,7 +404,10 @@ async function fullRefresh(){
   await Promise.all(DATA.slice(0,8).map(async d=>{const t=TMAP[d.isin];if(!t)return;const yf=await fetchYF(t);if(yf){Object.assign(d,yf);yfOk++}}));
   setDS('yf',yfOk>0?'ok':'err',`Yahoo: ${yfOk>0?yfOk+' titres ✓':'erreur proxy'}`);
   // 3. Render
-  render();
+  // INIT — charger clé sauvegardée
+const savedKey = localStorage.getItem('claudeKey');
+if(savedKey){document.getElementById('apiKey').value=savedKey;document.getElementById('keyIcon').textContent='✅'}
+render();
   // 4. News
   setSt('Actualités via Claude AI...');
   const alerts=DATA.filter(d=>['rouge','orange'].includes(lvl(d)));
