@@ -135,6 +135,25 @@ td{padding:12px 13px;font-size:13px;vertical-align:middle}
 .rule:last-child{border-bottom:none}
 .rule strong{display:block;margin-bottom:2px}
 @media(max-width:900px){.layout{grid-template-columns:1fr}.sboard{grid-template-columns:repeat(2,1fr)}.dgrid{grid-template-columns:1fr}main{padding:14px}}
+
+/* ALERTES PUSH */
+.notif-btn{padding:7px 14px;border-radius:7px;font-family:'Space Mono',monospace;font-size:10px;cursor:pointer;transition:all .18s;text-transform:uppercase;border:1px solid var(--border);background:var(--bg3);color:var(--text2);display:flex;align-items:center;gap:6px}
+.notif-btn:hover{border-color:var(--yellow);color:var(--yellow)}
+.notif-btn.on{border-color:var(--green);color:var(--green);background:rgba(0,229,160,.06)}
+.notif-btn.off{border-color:var(--muted);color:var(--muted)}
+
+/* MODAL */
+.modal-bg{position:fixed;inset:0;background:rgba(9,9,16,.85);z-index:1000;display:none;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+.modal-bg.on{display:flex}
+.modal{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:28px;max-width:440px;width:90%;box-shadow:0 24px 64px rgba(0,0,0,.5)}
+.modal h2{font-size:18px;font-weight:800;margin-bottom:6px}
+.modal p{font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:18px}
+.modal-btns{display:flex;gap:10px;justify-content:flex-end}
+.alert-history{margin-top:16px;max-height:200px;overflow-y:auto}
+.alert-item{padding:10px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:7px;margin-bottom:6px;font-size:12px}
+.alert-item .ah-ticker{font-family:'Space Mono',monospace;font-weight:700;color:var(--red);margin-bottom:3px}
+.alert-item .ah-msg{color:var(--text2)}
+.alert-item .ah-time{font-size:10px;color:var(--muted);margin-top:2px;font-family:'Space Mono',monospace}
 </style>
 </head>
 <body>
@@ -153,9 +172,49 @@ td{padding:12px 13px;font-size:13px;vertical-align:middle}
         oninput="saveKey(this.value)">
       <span id="keyIcon" title="Clé stockée localement dans votre navigateur" style="font-size:15px;cursor:help">🔑</span>
     </div>
+    <button class="notif-btn off" id="notifBtn" onclick="toggleNotifPanel()">🔔 Alertes</button>
     <button class="btn pri" id="rfBtn" onclick="fullRefresh()">⟳ Analyser</button>
   </div>
 </header>
+
+<!-- MODAL ALERTES -->
+<div class="modal-bg" id="notifModal">
+  <div class="modal">
+    <h2>🔔 Alertes Push</h2>
+    <p>Recevez une notification automatique dès qu'un titre passe en <strong style="color:var(--red)">alerte rouge</strong> — même si l'appli est fermée.</p>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:8px">
+        <div>
+          <div style="font-size:13px;font-weight:600">Statut notifications</div>
+          <div style="font-size:11px;color:var(--text2);margin-top:2px" id="notifStatus">Non activées</div>
+        </div>
+        <button class="btn" id="notifToggle" onclick="requestNotifPermission()">Activer</button>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:8px">
+        <div>
+          <div style="font-size:13px;font-weight:600">Vérification auto</div>
+          <div style="font-size:11px;color:var(--text2);margin-top:2px">Toutes les heures</div>
+        </div>
+        <span id="autoCheck" style="font-family:'Space Mono',monospace;font-size:10px;color:var(--muted)">—</span>
+      </div>
+      <div style="padding:10px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:8px">
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px">Seuil d'alerte</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="tab r on" id="th-rouge" onclick="setThreshold('rouge',this)">🔴 Rouge (>20%)</button>
+          <button class="tab o" id="th-orange" onclick="setThreshold('orange',this)">🟠 Orange (>10%)</button>
+        </div>
+      </div>
+    </div>
+    <div style="font-family:'Space Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:8px">Historique alertes</div>
+    <div class="alert-history" id="alertHistory">
+      <div style="color:var(--muted);font-size:11px;text-align:center;padding:16px">Aucune alerte déclenchée</div>
+    </div>
+    <div class="modal-btns" style="margin-top:16px">
+      <button class="btn" onclick="testNotif()">🧪 Tester</button>
+      <button class="btn pri" onclick="closeNotifPanel()">Fermer</button>
+    </div>
+  </div>
+</div>
 <div class="sbar" id="sb"><div class="spin"></div><span id="stxt">...</span></div>
 <main>
   <div class="sboard">
@@ -604,10 +663,184 @@ async function fullRefresh(){
   await Promise.all(DATA.slice(0,8).map(async d=>{const t=TMAP[d.isin];if(!t)return;const yf=await fetchYF(t);if(yf){Object.assign(d,yf);yfOk++}}));
   setDS('yf',yfOk>0?'ok':'err',`Yahoo: ${yfOk>0?yfOk+' titres ✓':'erreur proxy'}`);
   // 3. Render
-  // INIT — charger clé sauvegardée
+  // ═══════════════════════════════════════════════════
+// ALERTES PUSH
+// ═══════════════════════════════════════════════════
+let alertThreshold = localStorage.getItem('alertThreshold')||'rouge';
+let alertHistory = JSON.parse(localStorage.getItem('alertHistory')||'[]');
+let checkInterval = null;
+
+function toggleNotifPanel(){
+  document.getElementById('notifModal').classList.toggle('on');
+  updateNotifUI();
+  renderAlertHistory();
+}
+function closeNotifPanel(){
+  document.getElementById('notifModal').classList.remove('on');
+}
+
+function updateNotifUI(){
+  const perm = Notification.permission;
+  const btn = document.getElementById('notifBtn');
+  const status = document.getElementById('notifStatus');
+  const toggle = document.getElementById('notifToggle');
+  
+  if(perm==='granted'){
+    status.textContent='✅ Activées — alertes opérationnelles';
+    status.style.color='var(--green)';
+    toggle.textContent='Désactiver';
+    toggle.onclick=disableNotifs;
+    btn.className='notif-btn on';
+    btn.textContent='🔔 Alertes ON';
+    startAutoCheck();
+  } else if(perm==='denied'){
+    status.textContent='❌ Bloquées — autorisez dans les paramètres browser';
+    status.style.color='var(--red)';
+    toggle.textContent='Paramètres';
+    toggle.onclick=()=>alert('Allez dans Paramètres > Confidentialité > Notifications pour autoriser ce site.');
+    btn.className='notif-btn off';
+  } else {
+    status.textContent='Non activées — cliquez Activer';
+    status.style.color='var(--text2)';
+    toggle.textContent='Activer';
+    toggle.onclick=requestNotifPermission;
+    btn.className='notif-btn off';
+    btn.textContent='🔔 Alertes';
+  }
+}
+
+async function requestNotifPermission(){
+  const perm = await Notification.requestPermission();
+  updateNotifUI();
+  if(perm==='granted'){
+    sendNotif('SqueezeRadar ✅','Alertes activées ! Vous serez notifié en cas de squeeze détecté.');
+  }
+}
+
+function disableNotifs(){
+  if(checkInterval){clearInterval(checkInterval);checkInterval=null}
+  const btn=document.getElementById('notifBtn');
+  btn.className='notif-btn off';
+  btn.textContent='🔔 Alertes';
+  updateNotifUI();
+}
+
+function setThreshold(level, el){
+  alertThreshold=level;
+  localStorage.setItem('alertThreshold',level);
+  document.querySelectorAll('#th-rouge,#th-orange').forEach(b=>b.classList.remove('on'));
+  el.classList.add('on');
+}
+
+function sendNotif(title, body, data={}){
+  if(Notification.permission!=='granted')return;
+  const n = new Notification(title,{
+    body,
+    icon:'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" fill="%23ff3355"/><text y=".9em" font-size="80" x="10">⚡</text></svg>',
+    badge:'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" fill="%23ff3355"/></svg>',
+    tag: data.isin||'squeeze-radar',
+    ...data
+  });
+  n.onclick=()=>{ window.focus(); closeNotifPanel(); };
+}
+
+function checkForAlerts(){
+  if(Notification.permission!=='granted'||!DATA.length)return;
+  const triggered=DATA.filter(d=>{
+    const l=lvl(d);
+    if(alertThreshold==='rouge') return l==='rouge';
+    if(alertThreshold==='orange') return l==='rouge'||l==='orange';
+    return false;
+  });
+  
+  triggered.forEach(d=>{
+    const key=`${d.isin}-${new Date().toDateString()}`;
+    const alreadySent=alertHistory.find(a=>a.key===key);
+    if(alreadySent)return;
+    
+    const msg=`${d.emetteur} — Short: ${d.shortPct.toFixed(2)}% | Score: ${sc(d)}/100 | DTC: ${d.dtc.toFixed(1)}j`;
+    sendNotif(`🚨 Squeeze détecté — ${d.emetteur}`, msg, {isin:d.isin});
+    
+    // Sauvegarder dans l'historique
+    alertHistory.unshift({
+      key, isin:d.isin, ticker:d.emetteur,
+      msg, time:new Date().toLocaleString('fr-FR'),
+      level:lvl(d), score:sc(d), shortPct:d.shortPct
+    });
+    alertHistory=alertHistory.slice(0,20); // garder les 20 dernières
+    localStorage.setItem('alertHistory',JSON.stringify(alertHistory));
+    renderAlertHistory();
+  });
+  
+  // Mettre à jour le timestamp
+  const autoEl=document.getElementById('autoCheck');
+  if(autoEl)autoEl.textContent='Dernière vérif: '+new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+}
+
+function startAutoCheck(){
+  if(checkInterval)return;
+  checkForAlerts(); // Vérification immédiate
+  checkInterval=setInterval(()=>{
+    // Rafraîchir les données puis vérifier
+    fullRefresh().then(()=>checkForAlerts());
+  }, 60*60*1000); // toutes les heures
+  const autoEl=document.getElementById('autoCheck');
+  if(autoEl)autoEl.textContent='Actif — toutes les heures';
+}
+
+function testNotif(){
+  if(Notification.permission!=='granted'){
+    alert('Activez d'abord les notifications.');
+    return;
+  }
+  const testData=DATA[0]||{emetteur:'TEST',shortPct:21.5,isin:'TEST'};
+  sendNotif(
+    `🧪 Test — ${testData.emetteur}`,
+    `Short: ${testData.shortPct.toFixed(2)}% | Alerte rouge simulée | SqueezeRadar`,
+    {isin:'test'}
+  );
+  // Ajouter à l'historique
+  alertHistory.unshift({
+    key:'test-'+Date.now(), isin:'TEST', ticker:testData.emetteur,
+    msg:'Notification test', time:new Date().toLocaleString('fr-FR'),
+    level:'rouge', score:90, shortPct:testData.shortPct
+  });
+  localStorage.setItem('alertHistory',JSON.stringify(alertHistory));
+  renderAlertHistory();
+}
+
+function renderAlertHistory(){
+  alertHistory=JSON.parse(localStorage.getItem('alertHistory')||'[]');
+  const el=document.getElementById('alertHistory');
+  if(!el)return;
+  if(!alertHistory.length){
+    el.innerHTML='<div style="color:var(--muted);font-size:11px;text-align:center;padding:16px">Aucune alerte déclenchée</div>';
+    return;
+  }
+  el.innerHTML=alertHistory.map(a=>`
+    <div class="alert-item">
+      <div class="ah-ticker"><span class="badge ${a.level}" style="font-size:9px"><span class="bd"></span>${a.level.toUpperCase()}</span> ${a.ticker} — Score ${a.score}/100</div>
+      <div class="ah-msg">${a.msg}</div>
+      <div class="ah-time">${a.time}</div>
+    </div>`).join('');
+}
+
+// Fermer modal en cliquant dehors
+document.addEventListener('click', e=>{
+  const modal=document.getElementById('notifModal');
+  if(e.target===modal)closeNotifPanel();
+});
+
+// INIT — charger clé sauvegardée
 const savedKey = localStorage.getItem('claudeKey');
 if(savedKey){document.getElementById('apiKey').value=savedKey;document.getElementById('keyIcon').textContent='✅'}
 render();
+// Init alertes
+setTimeout(()=>{
+  updateNotifUI();
+  // Reprendre l'auto-check si les notifs étaient déjà activées
+  if(Notification.permission==='granted')startAutoCheck();
+}, 500);
   // 4. News
   setSt('Actualités via Claude AI...');
   const alerts=DATA.filter(d=>['rouge','orange'].includes(lvl(d)));
