@@ -481,25 +481,17 @@ function drawChart(d){
 }
 
 function buildShortHistory(d){
-  // Reconstruit l'évolution du short sur 90j à partir des holders et de la tendance
-  const days=90;
-  const result=[];
-  const current=d.shortPct;
-  const trend=d.tendance30j||0;
-  // Point de départ estimé 90j ago
+  // Utiliser l'historique réel AMF si disponible, sinon simuler
+  if(d.shortHistory&&d.shortHistory.length>0) return d.shortHistory;
+  // Fallback simulé
+  const days=90,result=[],current=d.shortPct,trend=d.tendance30j||0;
   const start=current-(trend*3);
   for(let i=days;i>=0;i--){
     const dt=new Date();dt.setDate(dt.getDate()-i);
-    // Progression non-linéaire avec bruit
     const progress=(days-i)/days;
     const base=start+(current-start)*progress;
-    const noise=(Math.random()-.5)*0.3;
-    result.push({
-      date:dt.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'}),
-      pct:Math.max(0,base+noise)
-    });
+    result.push({date:dt.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'}),pct:Math.max(0,base+(Math.random()-.5)*0.3)});
   }
-  // Assurer que le dernier point = valeur actuelle
   result[result.length-1].pct=current;
   return result;
 }
@@ -549,63 +541,110 @@ function parseAMF(csv){
   const lines=csv.split('\n').filter(l=>l.trim());
   if(lines.length<2)return null;
   
-  // Détecter le séparateur (virgule ou point-virgule)
   const sep=lines[0].includes(';')?';':',';
-  const headers=lines[0].split(sep).map(h=>h.replace(/"/g,'').trim().toLowerCase());
-  
-  // Logger les headers pour debug
-  console.log('AMF headers:', headers);
-  console.log('AMF total lines:', lines.length);
   
   const rows=lines.slice(1).map(line=>{
     const c=line.split(sep).map(x=>x.replace(/"/g,'').trim());
     return{
-      det:c[0],        // Detenteur de la position courte nette
-      lei:c[1],        // Legal Entity Identifier  
-      emetteur:c[2],   // Emetteur / issuer
-      ratio:c[3],      // Ratio / position %
-      isin:c[4],       // code ISIN
-      dateDebut:c[5],  // Date de debut de position
-      datePub:c[6],    // Date de debut de publication
-      dateFin:c[7],    // Date de fin de publication
+      det:c[0], emetteur:c[2], ratio:c[3], isin:c[4],
+      datePub:c[6], dateFin:c[7]
     };
   }).filter(r=>r.isin&&r.isin.startsWith('FR')&&r.ratio&&!isNaN(parseFloat(r.ratio.replace(',','.'))));
-  
-  console.log('AMF valid rows:', rows.length);
-  
-  // Position active = date_fin vide ou non renseignée
-  const active=rows.filter(r=>!r.dateFin||r.dateFin.trim()===''||r.dateFin.trim()==='-');
-  console.log('AMF active positions:', active.length);
-  
-  // Si pas de positions actives, prendre les plus récentes (dernière date pub)
-  const toProcess = active.length > 0 ? active : rows;
-  
+
+  // Dates de référence
+  const now = new Date();
+  const d30ago = new Date(now); d30ago.setDate(d30ago.getDate()-30);
+  const d90ago = new Date(now); d90ago.setDate(d90ago.getDate()-90);
+
+  // Parser une date AMF (format YYYY-MM-DD)
+  function parseDate(s){ if(!s||!s.trim())return null; try{return new Date(s.trim())}catch(e){return null} }
+
+  // Positions actives aujourd'hui = date_fin vide
+  const active = rows.filter(r=>!r.dateFin||r.dateFin.trim()===''||r.dateFin.trim()==='-');
+
+  // Toutes les positions (actives + historiques) pour calcul tendance
+  const allRows = rows;
+
+  // Calculer le total short par ISIN à une date donnée
+  function totalAtDate(isin, refDate){
+    // Pour chaque détenteur, trouver sa dernière position publiée avant refDate
+    const byDet = {};
+    allRows
+      .filter(r=>r.isin===isin)
+      .forEach(r=>{
+        const pub = parseDate(r.datePub);
+        const fin = parseDate(r.dateFin);
+        if(!pub)return;
+        if(pub>refDate)return; // pas encore publié
+        if(fin&&fin<refDate)return; // déjà clôturé
+        const pos = parseFloat(r.ratio.replace(',','.'));
+        if(isNaN(pos)||pos<=0)return;
+        // Garder la position la plus récente par détenteur
+        if(!byDet[r.det]||pub>parseDate(byDet[r.det].datePub)){
+          byDet[r.det]={pos,datePub:r.datePub};
+        }
+      });
+    return Object.values(byDet).reduce((s,x)=>s+x.pos,0);
+  }
+
+  // Construire l'historique short sur 90j pour le graphique
+  function buildShortHistoryReal(isin, currentPct){
+    const pts=[];
+    for(let i=90;i>=0;i--){
+      const dt=new Date(now); dt.setDate(dt.getDate()-i);
+      const pct=totalAtDate(isin,dt);
+      pts.push({
+        date:dt.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'}),
+        pct: pct>0?pct:null
+      });
+    }
+    // Remplir les trous (forward fill)
+    let last=pts.find(p=>p.pct>0)?.pct||currentPct;
+    pts.forEach(p=>{if(p.pct===null)p.pct=last;else last=p.pct;});
+    return pts;
+  }
+
+  // Grouper positions actives par ISIN
   const m={};
+  const toProcess = active.length>0 ? active : rows;
   toProcess.forEach(r=>{
     const pos=parseFloat(r.ratio.replace(',','.'));
     if(isNaN(pos)||pos<=0)return;
     if(!m[r.isin])m[r.isin]={emetteur:r.emetteur||r.isin,isin:r.isin,holders:[],shortPct:0};
-    // Éviter les doublons par détenteur
     const exists=m[r.isin].holders.find(h=>h.name===r.det);
     if(!exists){
       m[r.isin].holders.push({name:r.det,pct:pos,date:r.datePub});
       m[r.isin].shortPct+=pos;
     }
   });
-  
+
   const result=Object.values(m)
     .filter(d=>d.shortPct>=0.5)
     .sort((a,b)=>b.shortPct-a.shortPct)
     .slice(0,30)
-    .map(d=>({
-      ...d,
-      tendance30j:+(Math.random()*4-1).toFixed(1),
-      dtc:+(Math.random()*10+1).toFixed(1),
-      volumeSpike:false,prixSpike:false,shortCover:false,
-      price:null,priceDelta:null,hist:null
-    }));
-  
-  console.log('AMF result:', result.length, 'emetteurs');
+    .map(d=>{
+      // Vraie tendance 30j = différence entre short actuel et short il y a 30j
+      const pct30ago = totalAtDate(d.isin, d30ago);
+      const tendance30j = pct30ago>0 ? +(d.shortPct - pct30ago).toFixed(2) : 0;
+      
+      // Short cover = tendance négative significative (les shorts se rachètent)
+      const shortCover = tendance30j < -0.5;
+
+      // Historique réel pour le graphique
+      const shortHistory = buildShortHistoryReal(d.isin, d.shortPct);
+
+      return{
+        ...d,
+        tendance30j,
+        shortCover,
+        shortHistory, // historique réel AMF
+        dtc:+(Math.random()*10+1).toFixed(1), // DTC calculé après Yahoo
+        volumeSpike:false, prixSpike:false,
+        price:null, priceDelta:null, hist:null
+      };
+    });
+
+  console.log('AMF result:', result.length, 'emetteurs, tendances réelles calculées');
   return result.length>0?result:null;
 }
 
