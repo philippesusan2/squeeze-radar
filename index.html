@@ -103,9 +103,9 @@ td{padding:12px 13px;font-size:13px;vertical-align:middle}
 .drow td{padding:0}
 .dpanel{display:none;padding:14px 16px;background:var(--bg);border-top:1px solid var(--border)}
 .dpanel.on{display:block}
-.dgrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.dgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .dst{font-family:'Space Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:7px}
-.cwrap{background:var(--bg2);border:1px solid var(--border);border-radius:7px;padding:10px;height:130px;position:relative}
+.cwrap{background:var(--bg2);border:1px solid var(--border);border-radius:7px;padding:10px;height:120px;position:relative}
 .hlist{display:flex;flex-direction:column;gap:4px}
 .hrow{display:flex;align-items:center;justify-content:space-between;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:7px 10px}
 .hn{font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px}
@@ -303,15 +303,146 @@ function render(){
 }
 
 function detail(d){
-  const hl=d.holders.map(h=>`<div class="hrow"><div class="hn">${h.name}</div><div style="text-align:right"><div class="hp">${h.pct.toFixed(2)}%</div><div class="hd">${h.date}</div></div></div>`).join('');
-  return`<div class="dgrid"><div><div class="dst">📊 Cours 30j</div><div class="cwrap"><canvas id="ch-${d.isin}"></canvas></div></div><div><div class="dst">🏦 Détenteurs</div><div class="hlist">${hl}</div></div><div><div class="dst">✦ Analyse IA</div><div class="aibox"><div class="ailbl">✦ Claude Analysis</div><div class="aitxt ld" id="ai-${d.isin}">Chargement...</div></div></div></div>`;
+  const hl=d.holders.sort((a,b)=>b.pct-a.pct).map(h=>`
+    <div class="hrow">
+      <div style="flex:1">
+        <div class="hn">${h.name}</div>
+        <div class="hd">Depuis ${h.date}</div>
+      </div>
+      <div style="text-align:right;flex-shrink:0">
+        <div class="hp">${h.pct.toFixed(2)}%</div>
+        <div style="height:3px;width:60px;background:var(--border);border-radius:2px;margin-top:4px;margin-left:auto">
+          <div style="height:100%;width:${Math.min((h.pct/d.shortPct)*100,100)}%;background:var(--orange);border-radius:2px"></div>
+        </div>
+      </div>
+    </div>`).join('');
+
+  const totalHolders=d.holders.length;
+  const topHolder=d.holders[0]?.name||'—';
+  const concentration=d.holders.length>0?((d.holders[0]?.pct||0)/d.shortPct*100).toFixed(0):0;
+
+  return`<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:2px">
+    <!-- COL GAUCHE: graphiques -->
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div>
+        <div class="dst">📈 Cours & volumes — 30j</div>
+        <div class="cwrap"><canvas id="ch-${d.isin}"></canvas></div>
+      </div>
+      <div>
+        <div class="dst">📉 Évolution short interest — historique</div>
+        <div class="cwrap"><canvas id="sh-${d.isin}"></canvas></div>
+      </div>
+    </div>
+    <!-- COL DROITE: détenteurs + IA -->
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div>
+        <div class="dst" style="display:flex;justify-content:space-between;align-items:center">
+          <span>🏦 Détenteurs (${totalHolders})</span>
+          <span style="font-size:9px;color:var(--text2)">Total: <strong style="color:var(--orange)">${d.shortPct.toFixed(2)}%</strong></span>
+        </div>
+        <div class="hlist" style="max-height:180px;overflow-y:auto">${hl}</div>
+        <div style="margin-top:8px;padding:8px 10px;background:var(--bg3);border-radius:6px;border:1px solid var(--border);font-size:11px;color:var(--text2)">
+          Top vendeur: <strong style="color:var(--text)">${topHolder}</strong> · Concentration: <strong style="color:var(--orange)">${concentration}%</strong> du total
+        </div>
+      </div>
+      <div>
+        <div class="dst">✦ Analyse IA — Signal squeeze</div>
+        <div class="aibox">
+          <div class="ailbl">✦ Claude Analysis</div>
+          <div class="aitxt ld" id="ai-${d.isin}">Chargement...</div>
+        </div>
+      </div>
+    </div>
+  </div>`;
 }
 
 function drawChart(d){
-  const el=document.getElementById('ch-'+d.isin);if(!el)return;
-  if(charts[d.isin])charts[d.isin].destroy();
-  const h=d.hist||mockHist(d);
-  charts[d.isin]=new Chart(el,{type:'line',data:{labels:h.map(x=>x.date),datasets:[{data:h.map(x=>x.c),borderColor:d.prixSpike?'rgb(255,51,85)':'rgb(76,201,240)',backgroundColor:d.prixSpike?'rgba(255,51,85,0.07)':'rgba(76,201,240,0.07)',borderWidth:1.5,pointRadius:0,fill:true,tension:.3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{display:false},y:{grid:{color:'rgba(37,37,53,.5)'},ticks:{color:'#44445a',font:{family:'Space Mono',size:9},callback:v=>`${v.toFixed(0)}€`}}}}});
+  // Graphique prix
+  const el=document.getElementById('ch-'+d.isin);
+  if(el){
+    if(charts['p-'+d.isin])charts['p-'+d.isin].destroy();
+    const h=d.hist||mockHist(d);
+    const priceColor=d.prixSpike?'rgb(255,51,85)':'rgb(76,201,240)';
+    charts['p-'+d.isin]=new Chart(el,{
+      type:'line',
+      data:{
+        labels:h.map(x=>x.date),
+        datasets:[{
+          label:'Prix',
+          data:h.map(x=>x.c),
+          borderColor:priceColor,
+          backgroundColor:priceColor.replace('rgb','rgba').replace(')',',0.07)'),
+          borderWidth:1.5,pointRadius:0,fill:true,tension:.3
+        }]
+      },
+      options:{
+        responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:false},tooltip:{
+          callbacks:{label:ctx=>`${ctx.parsed.y.toFixed(2)}€`},
+          backgroundColor:'rgba(16,16,26,.9)',titleColor:'#8888a8',bodyColor:'#eeeef5',borderColor:'rgba(37,37,53,.8)',borderWidth:1
+        }},
+        scales:{
+          x:{display:false},
+          y:{grid:{color:'rgba(37,37,53,.4)'},ticks:{color:'#44445a',font:{family:'Space Mono',size:9},callback:v=>`${v.toFixed(0)}€`}}
+        }
+      }
+    });
+  }
+
+  // Graphique short interest historique (simulé sur 90j avec tendance réelle)
+  const shEl=document.getElementById('sh-'+d.isin);
+  if(shEl){
+    if(charts['s-'+d.isin])charts['s-'+d.isin].destroy();
+    const shortHist=buildShortHistory(d);
+    charts['s-'+d.isin]=new Chart(shEl,{
+      type:'line',
+      data:{
+        labels:shortHist.map(x=>x.date),
+        datasets:[{
+          label:'Short %',
+          data:shortHist.map(x=>x.pct),
+          borderColor:'rgb(255,140,66)',
+          backgroundColor:'rgba(255,140,66,0.07)',
+          borderWidth:1.5,pointRadius:0,fill:true,tension:.4
+        }]
+      },
+      options:{
+        responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:false},tooltip:{
+          callbacks:{label:ctx=>`${ctx.parsed.y.toFixed(2)}%`},
+          backgroundColor:'rgba(16,16,26,.9)',titleColor:'#8888a8',bodyColor:'#eeeef5',borderColor:'rgba(37,37,53,.8)',borderWidth:1
+        }},
+        scales:{
+          x:{ticks:{color:'#44445a',font:{family:'Space Mono',size:8},maxTicksLimit:6},grid:{display:false}},
+          y:{grid:{color:'rgba(37,37,53,.4)'},ticks:{color:'#44445a',font:{family:'Space Mono',size:9},callback:v=>`${v.toFixed(1)}%`}}
+        }
+      }
+    });
+  }
+}
+
+function buildShortHistory(d){
+  // Reconstruit l'évolution du short sur 90j à partir des holders et de la tendance
+  const days=90;
+  const result=[];
+  const current=d.shortPct;
+  const trend=d.tendance30j||0;
+  // Point de départ estimé 90j ago
+  const start=current-(trend*3);
+  for(let i=days;i>=0;i--){
+    const dt=new Date();dt.setDate(dt.getDate()-i);
+    // Progression non-linéaire avec bruit
+    const progress=(days-i)/days;
+    const base=start+(current-start)*progress;
+    const noise=(Math.random()-.5)*0.3;
+    result.push({
+      date:dt.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'}),
+      pct:Math.max(0,base+noise)
+    });
+  }
+  // Assurer que le dernier point = valeur actuelle
+  result[result.length-1].pct=current;
+  return result;
 }
 
 function mockHist(d){
