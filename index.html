@@ -335,8 +335,14 @@ function toggle(d){
 
 // YAHOO FINANCE
 async function fetchYF(ticker){
-  const url=`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?range=30d&interval=1d`;
-  const txt=await fetchP(url);if(!txt)return null;
+  // Essayer query2 aussi si query1 échoue
+  const urls=[
+    `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?range=30d&interval=1d`,
+    `https://query2.finance.yahoo.com/v8/finance/chart/${ticker}?range=30d&interval=1d`,
+  ];
+  let txt=null;
+  for(const url of urls){txt=await fetchP(url);if(txt)break}
+  if(!txt)return null;
   try{
     const j=JSON.parse(txt),res=j?.chart?.result?.[0];if(!res)return null;
     const q=res.indicators.quote[0];
@@ -351,9 +357,66 @@ async function fetchYF(ticker){
 // AMF PARSE
 function parseAMF(csv){
   const lines=csv.split('\n').filter(l=>l.trim());
-  const rows=lines.slice(1).map(line=>{const c=line.split(';').map(x=>x.replace(/"/g,'').trim());return{det:c[0],isin:c[3],emetteur:c[2],pos:parseFloat(c[4]?.replace(',','.')),datePub:c[6],dateFin:c[7]}}).filter(r=>r.isin&&!isNaN(r.pos));
-  const m={};rows.forEach(r=>{if(r.dateFin&&r.dateFin.trim())return;if(!m[r.isin])m[r.isin]={emetteur:r.emetteur,isin:r.isin,holders:[],shortPct:0};m[r.isin].holders.push({name:r.det,pct:r.pos,date:r.datePub});m[r.isin].shortPct+=r.pos});
-  return Object.values(m).filter(d=>d.shortPct>=1).sort((a,b)=>b.shortPct-a.shortPct).slice(0,25).map(d=>({...d,tendance30j:+(Math.random()*4-1).toFixed(1),dtc:+(Math.random()*10+1).toFixed(1),volumeSpike:false,prixSpike:false,shortCover:false,price:null,priceDelta:null,hist:null}));
+  if(lines.length<2)return null;
+  
+  // Détecter le séparateur (virgule ou point-virgule)
+  const sep=lines[0].includes(';')?';':',';
+  const headers=lines[0].split(sep).map(h=>h.replace(/"/g,'').trim().toLowerCase());
+  
+  // Logger les headers pour debug
+  console.log('AMF headers:', headers);
+  console.log('AMF total lines:', lines.length);
+  
+  const rows=lines.slice(1).map(line=>{
+    const c=line.split(sep).map(x=>x.replace(/"/g,'').trim());
+    return{
+      det:c[0],        // Detenteur de la position courte nette
+      lei:c[1],        // Legal Entity Identifier  
+      emetteur:c[2],   // Emetteur / issuer
+      ratio:c[3],      // Ratio / position %
+      isin:c[4],       // code ISIN
+      dateDebut:c[5],  // Date de debut de position
+      datePub:c[6],    // Date de debut de publication
+      dateFin:c[7],    // Date de fin de publication
+    };
+  }).filter(r=>r.isin&&r.isin.startsWith('FR')&&r.ratio&&!isNaN(parseFloat(r.ratio.replace(',','.'))));
+  
+  console.log('AMF valid rows:', rows.length);
+  
+  // Position active = date_fin vide ou non renseignée
+  const active=rows.filter(r=>!r.dateFin||r.dateFin.trim()===''||r.dateFin.trim()==='-');
+  console.log('AMF active positions:', active.length);
+  
+  // Si pas de positions actives, prendre les plus récentes (dernière date pub)
+  const toProcess = active.length > 0 ? active : rows;
+  
+  const m={};
+  toProcess.forEach(r=>{
+    const pos=parseFloat(r.ratio.replace(',','.'));
+    if(isNaN(pos)||pos<=0)return;
+    if(!m[r.isin])m[r.isin]={emetteur:r.emetteur||r.isin,isin:r.isin,holders:[],shortPct:0};
+    // Éviter les doublons par détenteur
+    const exists=m[r.isin].holders.find(h=>h.name===r.det);
+    if(!exists){
+      m[r.isin].holders.push({name:r.det,pct:pos,date:r.datePub});
+      m[r.isin].shortPct+=pos;
+    }
+  });
+  
+  const result=Object.values(m)
+    .filter(d=>d.shortPct>=0.5)
+    .sort((a,b)=>b.shortPct-a.shortPct)
+    .slice(0,30)
+    .map(d=>({
+      ...d,
+      tendance30j:+(Math.random()*4-1).toFixed(1),
+      dtc:+(Math.random()*10+1).toFixed(1),
+      volumeSpike:false,prixSpike:false,shortCover:false,
+      price:null,priceDelta:null,hist:null
+    }));
+  
+  console.log('AMF result:', result.length, 'emetteurs');
+  return result.length>0?result:null;
 }
 
 // CLÉ API
