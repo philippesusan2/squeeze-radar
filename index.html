@@ -232,12 +232,18 @@ const PROXIES=[
   u=>`https://thingproxy.freeboard.io/fetch/${u}`,
 ];
 async function fetchP(url){
+  // URL Vercel = appel direct, pas de proxy nécessaire
+  if(url.includes('vercel.app')){
+    try{const r=await fetch(url,{signal:AbortSignal.timeout(15000)});if(r.ok)return await r.text()}catch(e){}
+    return null;
+  }
+  // Autres URLs (Yahoo Finance) = proxy cascade
   for(const mk of PROXIES){try{const r=await fetch(mk(url),{signal:AbortSignal.timeout(8000)});if(r.ok)return await r.text()}catch(e){}}
   return null;
 }
 
 // CONFIG
-const AMF_URL='https://www.data.gouv.fr/api/1/datasets/r/c2539d1c-8531-4937-9cba-3bd8e9786cc5';
+const AMF_URL='https://squeeze-radar.vercel.app/api/amf';
 const TMAP={'FR0000051732':'ATO.PA','FR0010220475':'ALO.PA','FR0000120354':'VK.PA','FR0000054470':'UBI.PA','FR0010908533':'EDEN.PA','FR0000184798':'ORP.PA','FR0013181864':'CGG.PA','FR0000130395':'RCO.PA','FR0000130577':'PUB.PA','FR0000054900':'TFI.PA'};
 
 // MOCK DATA
