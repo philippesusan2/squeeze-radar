@@ -158,28 +158,38 @@ td{padding:12px 13px;font-size:13px;vertical-align:middle}
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 </head>
 <body>
-<header style="flex-direction:column;gap:10px;padding:12px 22px">
-  <div style="display:flex;align-items:center;justify-content:space-between;width:100%">
-    <div class="logo">
-      <div class="ricon"></div>
-      <h1>Squeeze<span>Radar</span> <sup style="font-size:10px;color:var(--muted);font-family:'Space Mono',monospace">v3</sup></h1>
-    </div>
-    <div style="display:flex;align-items:center;gap:8px">
-      <span class="pill live">● Live J-1</span>
-      <span id="keyIcon" title="Clé API Claude" style="font-size:15px;cursor:help">🔑</span>
-      <button class="notif-btn off" id="notifBtn" onclick="toggleNotifPanel()">🔔</button>
-      <button class="btn pri" id="rfBtn" onclick="fullRefresh()">⟳ Analyser</button>
-    </div>
+<header>
+  <div class="logo">
+    <div class="ricon"></div>
+    <h1>Squeeze<span>Radar</span> <sup style="font-size:10px;color:var(--muted);font-family:'Space Mono',monospace">v3</sup></h1>
   </div>
-  <div style="display:flex;align-items:center;gap:8px;width:100%">
-    <input id="apiKey" type="password" placeholder="Clé API Claude (sk-ant-...)"
-      style="flex:1;padding:6px 12px;border-radius:7px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-family:'Space Mono',monospace;font-size:10px;outline:none;transition:border-color .2s"
-      onfocus="this.style.borderColor='var(--purple)'"
-      onblur="this.style.borderColor='var(--border)'"
-      oninput="saveKey(this.value)">
-    <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--muted)">AMF · Yahoo · Claude AI</div>
+  <div class="hdr-r">
+    <span class="pill live">● Live J-1</span>
+    <button class="btn" id="keyBtn" onclick="toggleKeyPanel()" style="display:flex;align-items:center;gap:6px">
+      <span id="keyIcon">🔑</span>
+      <span id="keyBtnLabel">Clé API</span>
+    </button>
+    <button class="notif-btn off" id="notifBtn" onclick="toggleNotifPanel()">🔔 Alertes</button>
+    <button class="btn pri" id="rfBtn" onclick="fullRefresh()">⟳ Analyser</button>
   </div>
 </header>
+
+<!-- MODAL CLÉ API -->
+<div class="modal-bg" id="keyModal">
+  <div class="modal" style="max-width:380px">
+    <h2 style="margin-bottom:8px">🔑 Clé API Claude</h2>
+    <p style="margin-bottom:16px">Nécessaire pour l'analyse IA et les actualités. Stockée uniquement dans votre navigateur.</p>
+    <input id="apiKey" type="password" placeholder="sk-ant-api03-..."
+      style="width:100%;padding:10px 14px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-family:'Space Mono',monospace;font-size:12px;outline:none;margin-bottom:8px"
+      oninput="saveKey(this.value)">
+    <div style="font-size:11px;color:var(--muted);margin-bottom:16px">
+      Trouvez votre clé sur <strong style="color:var(--blue)">console.anthropic.com</strong> → API Keys
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn pri" onclick="closeKeyPanel()">Enregistrer</button>
+    </div>
+  </div>
+</div>
 
 <!-- MODAL ALERTES -->
 <div class="modal-bg" id="notifModal">
@@ -837,6 +847,26 @@ function scheduleDaily(){
 }
 
 // CLÉ API
+function toggleKeyPanel(){
+  document.getElementById('keyModal').classList.toggle('on');
+}
+function closeKeyPanel(){
+  document.getElementById('keyModal').classList.remove('on');
+  updateKeyUI();
+}
+function updateKeyUI(){
+  const k=getKey();
+  const icon=document.getElementById('keyIcon');
+  const lbl=document.getElementById('keyBtnLabel');
+  if(icon)icon.textContent=k?'✅':'🔑';
+  if(lbl)lbl.textContent=k?'Claude ✓':'Clé API';
+}
+// Fermer modal clé en cliquant dehors
+document.addEventListener('click',e=>{
+  const m=document.getElementById('keyModal');
+  if(e.target===m)closeKeyPanel();
+});
+
 function saveKey(k){localStorage.setItem('claudeKey',k);document.getElementById('keyIcon').textContent=k?'✅':'🔑'}
 function getKey(){return document.getElementById('apiKey').value||localStorage.getItem('claudeKey')||''}
 async function claudeFetch(body){
@@ -1060,7 +1090,11 @@ document.addEventListener('click', e=>{
 
 // INIT — charger clé sauvegardée
 const savedKey = localStorage.getItem('claudeKey');
-if(savedKey){document.getElementById('apiKey').value=savedKey;document.getElementById('keyIcon').textContent='✅'}
+if(savedKey){
+  const el=document.getElementById('apiKey');
+  if(el)el.value=savedKey;
+}
+updateKeyUI();
 render();
 scheduleDaily();
 // Init alertes
