@@ -954,15 +954,21 @@ document.addEventListener('click',e=>{
 
 function saveKey(k){
   if(k&&k.trim()){
-    localStorage.setItem('claudeKey', k.trim());
+    const val=k.trim();
+    localStorage.setItem('claudeKey',val);
+    try{
+      const exp=new Date();exp.setFullYear(exp.getFullYear()+1);
+      document.cookie='cKey='+encodeURIComponent(val)+';expires='+exp.toUTCString()+';path=/;SameSite=Lax';
+    }catch(e){}
     updateKeyUI();
   }
 }
 function getKey(){
-  // Priorité: champ input > localStorage
-  const inputVal = document.getElementById('apiKey')?.value?.trim();
-  if(inputVal) return inputVal;
-  return localStorage.getItem('claudeKey')||'';
+  try{
+    const ck=document.cookie.split(';').map(c=>c.trim()).find(c=>c.startsWith('cKey='));
+    if(ck)return decodeURIComponent(ck.split('=').slice(1).join('='));
+  }catch(e){}
+  return localStorage.getItem('claudeKey')||document.getElementById('apiKey')?.value?.trim()||'';
 }
 async function claudeFetch(body){
   const key=getKey();
@@ -1184,16 +1190,19 @@ document.addEventListener('click', e=>{
 });
 
 // INIT — charger clé sauvegardée
-// Charger clé sauvegardée — robuste
+// Charger clé — cookie > localStorage
 (function loadSavedKey(){
   try{
-    const k = localStorage.getItem('claudeKey');
+    const ck=document.cookie.split(';').map(c=>c.trim()).find(c=>c.startsWith('cKey='));
+    const fromCookie=ck?decodeURIComponent(ck.split('=').slice(1).join('=')):'';
+    const fromLS=localStorage.getItem('claudeKey')||'';
+    const k=fromCookie||fromLS;
     if(k){
-      const el = document.getElementById('apiKey');
-      if(el) el.value = k;
-      console.log('Clé API chargée depuis localStorage');
+      const el=document.getElementById('apiKey');
+      if(el)el.value=k;
+      saveKey(k); // resync les deux stockages
     }
-  }catch(e){ console.warn('localStorage non disponible:', e); }
+  }catch(e){}
 })();
 updateKeyUI();
 render();
