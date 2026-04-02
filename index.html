@@ -158,23 +158,26 @@ td{padding:12px 13px;font-size:13px;vertical-align:middle}
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 </head>
 <body>
-<header>
-  <div class="logo">
-    <div class="ricon"></div>
-    <h1>Squeeze<span>Radar</span> <sup style="font-size:10px;color:var(--muted);font-family:'Space Mono',monospace">v3</sup></h1>
-  </div>
-  <div class="hdr-r">
-    <span class="pill live">● Live J-1</span>
-    <div style="display:flex;align-items:center;gap:6px">
-      <input id="apiKey" type="password" placeholder="Clé API Claude (sk-ant-...)"
-        style="padding:7px 12px;border-radius:7px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-family:'Space Mono',monospace;font-size:10px;width:210px;outline:none;transition:border-color .2s"
-        onfocus="this.style.borderColor='var(--purple)'"
-        onblur="this.style.borderColor='var(--border)'"
-        oninput="saveKey(this.value)">
-      <span id="keyIcon" title="Clé stockée localement dans votre navigateur" style="font-size:15px;cursor:help">🔑</span>
+<header style="flex-direction:column;gap:10px;padding:12px 22px">
+  <div style="display:flex;align-items:center;justify-content:space-between;width:100%">
+    <div class="logo">
+      <div class="ricon"></div>
+      <h1>Squeeze<span>Radar</span> <sup style="font-size:10px;color:var(--muted);font-family:'Space Mono',monospace">v3</sup></h1>
     </div>
-    <button class="notif-btn off" id="notifBtn" onclick="toggleNotifPanel()">🔔 Alertes</button>
-    <button class="btn pri" id="rfBtn" onclick="fullRefresh()">⟳ Analyser</button>
+    <div style="display:flex;align-items:center;gap:8px">
+      <span class="pill live">● Live J-1</span>
+      <span id="keyIcon" title="Clé API Claude" style="font-size:15px;cursor:help">🔑</span>
+      <button class="notif-btn off" id="notifBtn" onclick="toggleNotifPanel()">🔔</button>
+      <button class="btn pri" id="rfBtn" onclick="fullRefresh()">⟳ Analyser</button>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:8px;width:100%">
+    <input id="apiKey" type="password" placeholder="Clé API Claude (sk-ant-...)"
+      style="flex:1;padding:6px 12px;border-radius:7px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-family:'Space Mono',monospace;font-size:10px;outline:none;transition:border-color .2s"
+      onfocus="this.style.borderColor='var(--purple)'"
+      onblur="this.style.borderColor='var(--border)'"
+      oninput="saveKey(this.value)">
+    <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--muted)">AMF · Yahoo · Claude AI</div>
   </div>
 </header>
 
