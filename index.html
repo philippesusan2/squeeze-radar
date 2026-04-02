@@ -290,6 +290,7 @@ td{padding:12px 13px;font-size:13px;vertical-align:middle}
           <th onclick="doSort('tendance30j')">Tend.30j ↕</th>
           <th>Prix · Δ1j · Δ1S · Δ1M</th>
           <th onclick="doSort('dtc')">DTC ↕</th>
+          <th onclick="doSort('psi')">PSI ↕</th>
           <th>Signaux</th>
           <th onclick="doSort('_sc')">Score ↕</th>
           <th>Alerte</th>
@@ -425,7 +426,13 @@ function render(){
       </div>
     </div>`:'<span style="color:var(--muted);font-size:10px">—</span>';
     const tr=document.createElement('tr');tr.dataset.isin=d.isin;if(openISIN===d.isin)tr.classList.add('exp');
-    tr.innerHTML=`<td class="tc"><div class="t">${d.emetteur}</div><div class="is">${d.isin}</div></td><td><div class="pw"><span class="pn" style="color:${color}">${d.shortPct.toFixed(2)}%</span><div class="bb"><div class="bf" style="width:${pf}%;background:${color}"></div></div></div></td><td><span class="tr2 ${tc}">${ts} ${Math.abs(d.tendance30j).toFixed(1)}%</span></td><td>${ph}</td><td><span style="font-family:'Space Mono',monospace;font-size:12px;color:${d.dtc>7?'var(--orange)':'var(--text2)'}">${d.dtc.toFixed(1)}j</span></td><td><div class="sigs">${sg}</div></td><td><div class="sr ${d._lv}">${d._sc}</div></td><td><span class="badge ${d._lv}"><span class="bd"></span>${lbls[d._lv]}</span></td>`;
+    const psiVal=d.psi!=null?d.psi:null;
+    const psiC=psiColor(psiVal);
+    const psiHtml=psiVal!=null&&psiVal>0
+      ?`<div style="font-family:'Space Mono',monospace;font-size:12px;font-weight:700;color:${psiC}">${psiVal}%
+         <div style="font-size:9px;color:${psiC};opacity:.8">${psiLabel(psiVal).split(' ')[1]||''}</div></div>`
+      :'<span style="color:var(--muted);font-size:10px">—</span>';
+    tr.innerHTML=`<td class="tc"><div class="t">${d.emetteur}</div><div class="is">${d.isin}</div></td><td><div class="pw"><span class="pn" style="color:${color}">${d.shortPct.toFixed(2)}%</span><div class="bb"><div class="bf" style="width:${pf}%;background:${color}"></div></div></div></td><td><span class="tr2 ${tc}">${ts} ${Math.abs(d.tendance30j).toFixed(1)}%</span></td><td>${ph}</td><td><span style="font-family:'Space Mono',monospace;font-size:12px;color:${d.dtc>7?'var(--orange)':'var(--text2)'}">${d.dtc.toFixed(1)}j</span></td><td>${psiHtml}</td><td>${d.psi!=null&&d.psi>0?`<div style="font-family:'Space Mono',monospace;font-size:12px;font-weight:700;color:${psiColor(d.psi)}">${d.psi}%<div style="font-size:9px;opacity:.8">${psiLevel(d.psi)}</div></div>`:'<span style="color:var(--muted);font-size:10px">—</span>'}</td><td><div class="sigs">${sg}</div></td><td><div class="sr ${d._lv}">${d._sc}</div></td><td><span class="badge ${d._lv}"><span class="bd"></span>${lbls[d._lv]}</span></td>`;
     tr.addEventListener('click',()=>toggle(d));tb.appendChild(tr);
     const dtr=document.createElement('tr');dtr.classList.add('drow');
     const dtd=document.createElement('td');dtd.colSpan=8;dtd.style.padding='0';
@@ -490,6 +497,25 @@ function detail(d){
         réduit${coverSignals.length>1?'ent':''} sa position — signal de rachat
        </div>`
     : '';
+  
+  // PSI detail
+  const psiDetailHtml = d.psi!=null&&d.psi>0 ? `
+    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:7px;padding:10px 14px;margin-top:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <span style="font-family:'Space Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted)">PSI — Pression Squeeze Index</span>
+        <span style="font-family:'Space Mono',monospace;font-size:16px;font-weight:700;color:${psiColor(d.psi)}">${d.psi}%</span>
+      </div>
+      <div style="height:4px;background:var(--border);border-radius:2px;margin-bottom:6px">
+        <div style="height:100%;width:${Math.min(d.psi,100)}%;background:${psiColor(d.psi)};border-radius:2px;transition:width .5s"></div>
+      </div>
+      <div style="font-size:11px;color:var(--text2)">
+        ${psiLabel(d.psi)} — 
+        ${d.psi<5?'Rachats dilués dans le volume normal':
+          d.psi<15?'Rachats perceptibles, surveiller':
+          d.psi<35?'Pression significative sur le titre':
+          'Squeeze potentiellement en cours ⚡'}
+      </div>
+    </div>` : '';
 
   return`<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:2px">
     <!-- COL GAUCHE: graphiques -->
@@ -513,6 +539,7 @@ function detail(d){
         </div>
         <div class="hlist" style="max-height:160px;overflow-y:auto">${fmHTML}</div>
         ${coverAlert}
+      ${psiDetailHtml}
       </div>
       <!-- Positions actuelles -->
       <div>
@@ -806,15 +833,28 @@ function parseAMF(csv){
         };
       }).sort((a,b)=>a.delta-b.delta); // trier par réduction (plus forte en premier)
 
+      // PSI — Indice de Pression Squeeze
+      // = total titres à racheter / volume mensuel estimé
+      // On utilise les % AMF, sharesOutstanding sera enrichi par Yahoo
+      const totalRachat = fundMovements
+        .filter(f=>f.isCover)
+        .reduce((sum,f)=>sum+Math.abs(f.delta),0); // % total racheté
+      // PSI provisoire en % (sera recalculé avec vrai volume après Yahoo)
+      const psiPct = totalRachat; // enrichi après Yahoo
+
       return{
         ...d,
         tendance30j,
         shortCover: fundMovements.some(f=>f.isCover),
-        shortHistory, // historique réel AMF
-        fundMovements, // mouvements par fonds
+        shortHistory,
+        fundMovements,
+        psiPct,        // % racheté total — base PSI
+        psi: null,     // calculé après Yahoo (titres rachetés / volume mensuel)
+        sharesOut: null, // nombre d'actions total (Yahoo)
         dtc:+(Math.random()*10+1).toFixed(1),
         volumeSpike:false, prixSpike:false,
-        price:null, priceDelta:null, hist:null
+        price:null, priceDelta:null, delta1w:null, delta1m:null,
+        volume:null, vol20avg:null, hist:null
       };
     });
 
@@ -1018,7 +1058,31 @@ async function fullRefresh(){
   // 2. Yahoo Finance
   setSt('Prix Yahoo Finance...');setDS('yf','wait','Yahoo: chargement...');
   let yfOk=0;
-  await Promise.all(DATA.slice(0,20).map(async d=>{const t=TMAP[d.isin];if(!t)return;const yf=await fetchYF(t);if(yf){Object.assign(d,yf);yfOk++}}));
+  await Promise.all(DATA.slice(0,20).map(async d=>{
+    const t=TMAP[d.isin];if(!t)return;
+    const yf=await fetchYF(t);
+    if(yf){
+      Object.assign(d,yf);
+      yfOk++;
+      // Calculer PSI avec le vrai volume
+      if(yf.vol20avg&&yf.vol20avg>0&&d.psiPct>0){
+        // Estimer sharesOut depuis shortPct et volume
+        // titres rachetés (est.) = psiPct% du capital
+        // volume mensuel = vol20avg * 21 jours
+        const volMensuel = yf.vol20avg * 21;
+        // On n'a pas sharesOut directement — on estime via:
+        // si short% = shortPct et vol20avg connu
+        // titres rachetés ≈ (psiPct/100) * (vol20avg * 21 / shortPct * 100)
+        // Simplification: PSI = (psiPct / shortPct) * DTC * 100 / 21
+        // Plus simple: PSI = psiPct (% racheté) / shortPct (% total) comme ratio
+        const psi = d.shortPct > 0 ? (d.psiPct / d.shortPct) * d.dtc * 100 / 21 : 0;
+        d.psi = Math.min(Math.round(psi), 100);
+      } else if(d.psiPct>0){
+        // Sans volume Yahoo — estimation par ratio
+        d.psi = Math.min(Math.round((d.psiPct/d.shortPct)*100), 100);
+      }
+    }
+  }));
   setDS('yf',yfOk>0?'ok':'err',`Yahoo: ${yfOk>0?yfOk+' titres ✓':'erreur proxy'}`);
   // 3. Render
   // ═══════════════════════════════════════════════════
