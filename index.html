@@ -316,6 +316,11 @@ td{padding:12px 13px;font-size:13px;vertical-align:middle}
 </main>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
+// PSI — Indice de Pression Squeeze
+function psiLevel(psi){if(!psi||psi<5)return'neutre';if(psi<15)return'modere';if(psi<35)return'fort';return'critique';}
+function psiColor(psi){const l=psiLevel(psi);return l==='critique'?'var(--red)':l==='fort'?'var(--orange)':l==='modere'?'var(--yellow)':'var(--muted)';}
+function psiLabel(psi){const l=psiLevel(psi);return l==='critique'?'🔴 Critique':l==='fort'?'🟠 Fort':l==='modere'?'🟡 Modéré':'⚪ Neutre';}
+
 // PROXIES CASCADE
 const PROXIES=[
   u=>`https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
@@ -441,6 +446,7 @@ function updateRow(d){
     cells[6].innerHTML=sg?`<div class="sigs">${sg}</div>`:'<span style="color:var(--muted);font-size:10px">—</span>';
   }
 }
+
 
 function render(){
   const rows=DATA.map(d=>({...d,_sc:sc(d),_lv:lvl(d)})).filter(d=>(tab==='all'||d._lv===tab)&&mS(d)).sort((a,b)=>{let va=a[sKey]??0,vb=b[sKey]??0;if(typeof va==='string'){va=va.toLowerCase();vb=vb.toLowerCase()}return sDir*(va>vb?1:va<vb?-1:0)});
@@ -1258,22 +1264,6 @@ function hideSt(){document.getElementById('sb').classList.remove('on')}
 function setDS(id,st,txt){document.getElementById('d-'+id+'-t').textContent=txt;document.getElementById('d-'+id).className='dsd '+st}
 
 render();
-</script>
-</body>
-</htmlfunction psiLevel(psi){
-  if(!psi||psi<5)return'neutre';
-  if(psi<15)return'modere';
-  if(psi<35)return'fort';
-  return'critique';
-}
-function psiColor(psi){
-  const l=psiLevel(psi);
-  return l==='critique'?'var(--red)':l==='fort'?'var(--orange)':l==='modere'?'var(--yellow)':'var(--muted)';
-}
-function psiLabel(psi){
-  const l=psiLevel(psi);
-  return l==='critique'?'🔴 Critique':l==='fort'?'🟠 Fort':l==='modere'?'🟡 Modéré':'⚪ Neutre';
-}
 </script>
 </body>
 </html>
