@@ -1099,78 +1099,12 @@ async function fullRefresh(){
   else{DATA=JSON.parse(JSON.stringify(MOCK));setDS('amf','err','AMF: mock utilisé')}
   // 2. Yahoo Finance
   setSt('Prix Yahoo Finance...');setDS('yf','wait','Yahoo: chargement...');
-  let yfOk=0;
-  await Promise.all(DATA.slice(0,20).map(async d=>{
-    const t=TMAP[d.isin];if(!t)return;
-    const yf=await fetchYF(t);
-    if(yf){
-      Object.assign(d,yf);
-      yfOk++;
-      // Calculer PSI avec le vrai volume
-      if(yf.vol20avg&&yf.vol20avg>0&&d.psiPct>0){
-        // Estimer sharesOut depuis shortPct et volume
-        // titres rachetés (est.) = psiPct% du capital
-        // volume mensuel = vol20avg * 21 jours
-        const volMensuel = yf.vol20avg * 21;
-        // On n'a pas sharesOut directement — on estime via:
-        // si short% = shortPct et vol20avg connu
-        // titres rachetés ≈ (psiPct/100) * (vol20avg * 21 / shortPct * 100)
-        // Simplification: PSI = (psiPct / shortPct) * DTC * 100 / 21
-        // Plus simple: PSI = psiPct (% racheté) / shortPct (% total) comme ratio
-        const psi = d.shortPct > 0 ? (d.psiPct / d.shortPct) * d.dtc * 100 / 21 : 0;
-        d.psi = Math.min(Math.round(psi), 100);
-      } else if(d.psiPct>0){
-        // Sans volume Yahoo — estimation par ratio
-        d.psi = Math.min(Math.round((d.psiPct/d.shortPct)*100), 100);
-      }
-    }
-  }));
-  setDS('yf',yfOk>0?'ok':'err',`Yahoo: ${yfOk>0?yfOk+' titres ✓':'erreur proxy'}`);
-  // 3. Render
-  // ═══════════════════════════════════════════════════
-// ALERTES PUSH
-// ═══════════════════════════════════════════════════
-let alertThreshold = localStorage.getItem('alertThreshold')||'rouge';
-let alertHistory = JSON.parse(localStorage.getItem('alertHistory')||'[]');
-let checkInterval = null;
-
-function toggleNotifPanel(){
-  document.getElementById('notifModal').classList.toggle('on');
-  updateNotifUI();
-  renderAlertHistory();
-}
-function closeNotifPanel(){
-  document.getElementById('notifModal').classList.remove('on');
-}
-
-function updateNotifUI(){
-  const perm = Notification.permission;
-  const btn = document.getElementById('notifBtn');
-  const status = document.getElementById('notifStatus');
-  const toggle = document.getElementById('notifToggle');
-  
-  if(perm==='granted'){
-    status.textContent='✅ Activées — alertes opérationnelles';
-    status.style.color='var(--green)';
-    toggle.textContent='Désactiver';
-    toggle.onclick=disableNotifs;
-    btn.className='notif-btn on';
-    btn.textContent='🔔 Alertes ON';
-    startAutoCheck();
-  } else if(perm==='denied'){
-    status.textContent='❌ Bloquées — autorisez dans les paramètres browser';
-    status.style.color='var(--red)';
-    toggle.textContent='Paramètres';
-    toggle.onclick=()=>alert('Allez dans Paramètres > Confidentialité > Notifications pour autoriser ce site.');
-    btn.className='notif-btn off';
-  } else {
-    status.textContent='Non activées — cliquez Activer';
-    status.style.color='var(--text2)';
-    toggle.textContent='Activer';
-    toggle.onclick=requestNotifPermission;
-    btn.className='notif-btn off';
-    btn.textContent='🔔 Alertes';
-  }
+  render();
+  await checkAndEmailAlerts();
+  setSt('Actualités via Claude AI...');
+  const alertsNews=DATA.filter(d=>['rouge','orange'].includes(lvl(d)));
+  await fetchNews(alertsNews.length?alertsNews:DATA.slice(0,5));
+  hideSt();btn.disabled=false;btn.textContent='⟳ Analyser';
 }
 
 async function requestNotifPermission(){
@@ -1319,16 +1253,6 @@ setTimeout(()=>{
   // Reprendre l'auto-check si les notifs étaient déjà activées
   if(Notification.permission==='granted')startAutoCheck();
 }, 500);
-  // 4. Vérifier alertes email
-  await checkAndEmailAlerts();
-  
-  // 5. News
-  setSt('Actualités via Claude AI...');
-  const alerts=DATA.filter(d=>['rouge','orange'].includes(lvl(d)));
-  await fetchNews(alerts.length?alerts:DATA.slice(0,5));
-  hideSt();btn.disabled=false;btn.textContent='⟳ Analyser';
-}
-
 function setSt(m){document.getElementById('stxt').textContent=m;document.getElementById('sb').classList.add('on')}
 function hideSt(){document.getElementById('sb').classList.remove('on')}
 function setDS(id,st,txt){document.getElementById('d-'+id+'-t').textContent=txt;document.getElementById('d-'+id).className='dsd '+st}
@@ -1350,7 +1274,6 @@ function psiLabel(psi){
   const l=psiLevel(psi);
   return l==='critique'?'🔴 Critique':l==='fort'?'🟠 Fort':l==='modere'?'🟡 Modéré':'⚪ Neutre';
 }
-
 </script>
 </body>
 </html>
