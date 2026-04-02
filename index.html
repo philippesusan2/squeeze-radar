@@ -158,19 +158,22 @@ td{padding:12px 13px;font-size:13px;vertical-align:middle}
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 </head>
 <body>
-<header>
-  <div class="logo">
+<header style="gap:12px">
+  <div class="logo" style="flex-shrink:0">
     <div class="ricon"></div>
-    <h1>Squeeze<span>Radar</span> <sup style="font-size:10px;color:var(--muted);font-family:'Space Mono',monospace">v3</sup></h1>
+    <h1>Squeeze<span>Radar</span></h1>
   </div>
-  <div class="hdr-r">
-    <span class="pill live">● Live J-1</span>
-    <button class="btn" id="keyBtn" onclick="toggleKeyPanel()" style="display:flex;align-items:center;gap:6px">
+  <div class="hdr-r" style="flex:1;justify-content:flex-end;flex-wrap:wrap;gap:8px">
+    <span class="pill live" style="flex-shrink:0">● Live J-1</span>
+    <button class="btn" id="keyBtn" onclick="toggleKeyPanel()"
+      style="display:flex;align-items:center;gap:5px;flex-shrink:0;white-space:nowrap">
       <span id="keyIcon">🔑</span>
       <span id="keyBtnLabel">Clé API</span>
     </button>
-    <button class="notif-btn off" id="notifBtn" onclick="toggleNotifPanel()">🔔 Alertes</button>
-    <button class="btn pri" id="rfBtn" onclick="fullRefresh()">⟳ Analyser</button>
+    <button class="notif-btn off" id="notifBtn" onclick="toggleNotifPanel()"
+      style="flex-shrink:0;white-space:nowrap">🔔 Alertes</button>
+    <button class="btn pri" id="rfBtn" onclick="fullRefresh()"
+      style="flex-shrink:0;white-space:nowrap">⟳ Analyser</button>
   </div>
 </header>
 
@@ -238,16 +241,30 @@ td{padding:12px 13px;font-size:13px;vertical-align:middle}
     <div class="stile y"><div class="lbl">Watch List</div><div class="big" id="cW">—</div><div class="sub">Short 5–10%</div></div>
     <div class="stile b"><div class="lbl">Titres suivis</div><div class="big" id="cT">—</div><div class="sub">France · AMF</div></div>
   </div>
-  <div class="screener">
-    <div style="font-family:'Space Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--text2);margin-bottom:12px">⚙ Screener</div>
-    <div class="sg">
-      <div class="fld"><label>Alerte</label><select id="fA" onchange="applyS()"><option value="">Tous</option><option value="rouge">🔴 Rouge</option><option value="orange">🟠 Orange</option><option value="watch">🟡 Watch</option></select></div>
-      <div class="fld"><label>Short % min — <span id="fSv">0</span>%</label><input type="range" id="fS" min="0" max="25" value="0" oninput="document.getElementById('fSv').textContent=this.value;applyS()"><div class="rrow"><span>0%</span><span>25%</span></div></div>
-      <div class="fld"><label>DTC min — <span id="fDv">0</span>j</label><input type="range" id="fD" min="0" max="15" value="0" oninput="document.getElementById('fDv').textContent=this.value;applyS()"><div class="rrow"><span>0j</span><span>15j</span></div></div>
-      <div class="fld"><label>Tendance 30j</label><select id="fT" onchange="applyS()"><option value="">Toutes</option><option value="up">↑ Hausse</option><option value="dn">↓ Baisse</option></select></div>
-      <div class="fld"><label>Signal actif</label><select id="fSig" onchange="applyS()"><option value="">Tous</option><option value="vol">Spike volume</option><option value="prix">Spike prix</option><option value="cover">Short cover</option></select></div>
-      <div class="fld" style="display:flex;align-items:flex-end"><button class="btn" onclick="resetS()" style="width:100%">✕ Reset</button></div>
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px 18px;margin-bottom:18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+    <div style="font-family:'Space Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted)">Filtrer</div>
+    <div class="fld" style="min-width:130px">
+      <select id="fA" onchange="applyS()" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 8px;font-family:'Space Mono',monospace;font-size:11px;outline:none">
+        <option value="">🔵 Tous</option>
+        <option value="rouge">🔴 Alertes Rouges</option>
+        <option value="orange">🟠 Alertes Oranges</option>
+        <option value="watch">🟡 Watch List</option>
+      </select>
     </div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <span style="font-family:'Space Mono',monospace;font-size:10px;color:var(--muted)">Short ≥</span>
+      <input type="range" id="fS" min="0" max="20" value="0" oninput="document.getElementById('fSv').textContent=this.value;applyS()" style="width:100px;accent-color:var(--blue);cursor:pointer">
+      <span id="fSv" style="font-family:'Space Mono',monospace;font-size:11px;color:var(--blue);min-width:28px">0%</span>
+    </div>
+    <div class="fld" style="min-width:150px">
+      <select id="fSig" onchange="applyS()" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 8px;font-family:'Space Mono',monospace;font-size:11px;outline:none">
+        <option value="">Tous signaux</option>
+        <option value="cover">🟢 COVER (rachat)</option>
+        <option value="vol">🔵 Spike volume</option>
+        <option value="prix">🔴 Spike prix</option>
+      </select>
+    </div>
+    <button class="btn" onclick="resetS()" style="padding:6px 12px;font-size:10px">✕ Reset</button>
   </div>
   <div class="layout">
     <div class="card">
@@ -271,7 +288,7 @@ td{padding:12px 13px;font-size:13px;vertical-align:middle}
           <th onclick="doSort('emetteur')">Émetteur ↕</th>
           <th onclick="doSort('shortPct')">Short % ↕</th>
           <th onclick="doSort('tendance30j')">Tend.30j ↕</th>
-          <th>Prix</th>
+          <th>Prix · Δ1j · Δ1S · Δ1M</th>
           <th onclick="doSort('dtc')">DTC ↕</th>
           <th>Signaux</th>
           <th onclick="doSort('_sc')">Score ↕</th>
@@ -318,7 +335,38 @@ async function fetchP(url){
 
 // CONFIG
 const AMF_URL='https://squeeze-radar.vercel.app/api/amf';
-const TMAP={'FR0000051732':'ATO.PA','FR0010220475':'ALO.PA','FR0000120354':'VK.PA','FR0000054470':'UBI.PA','FR0010908533':'EDEN.PA','FR0000184798':'ORP.PA','FR0013181864':'CGG.PA','FR0000130395':'RCO.PA','FR0000130577':'PUB.PA','FR0000054900':'TFI.PA'};
+const TMAP={
+  'FR0000051732':'ATO.PA',      // Atos
+  'FR0010220475':'ALO.PA',      // Alstom
+  'FR0000120354':'VK.PA',       // Vallourec
+  'FR0000054470':'UBI.PA',      // Ubisoft
+  'FR0010908533':'EDEN.PA',     // Edenred
+  'FR0000184798':'ORP.PA',      // Orpea
+  'FR0013181864':'CGG.PA',      // CGG
+  'FR0000130395':'RCO.PA',      // Rémy Cointreau
+  'FR0000130577':'PUB.PA',      // Publicis
+  'FR0000054900':'TFI.PA',      // TF1
+  'FR0013176526':'FR.PA',       // Valeo
+  'FR0011981968':'WLN.PA',      // Worldline
+  'FR0000051807':'TEP.PA',      // Teleperformance
+  'FR0000120628':'ACA.PA',      // Crédit Agricole
+  'FR0000131104':'BN.PA',       // Danone
+  'FR0000120073':'AI.PA',       // Air Liquide
+  'FR0000131906':'KER.PA',      // Kering
+  'FR0010208488':'GSZ.PA',      // GDF Suez/Engie
+  'FR0000121667':'NK.PA',       // Imerys
+  'FR0010112524':'NEX.PA',      // Nexity
+  'FR0012185536':'HO.PA',       // Thales
+  'FR0000125486':'VIE.PA',      // Veolia
+  'FR0000121485':'BOL.PA',      // Bolloré
+  'FR0000125338':'SOLB.PA',     // Solvay
+  'FR0013451333':'FDJ.PA',      // FDJ United
+  'FR0000121261':'BIM.PA',      // Biomerieux
+  'FR0010263202':'EXA.PA',      // Exail Technologies
+  'FR0012185536':'HO.PA',       // Thales
+  'FR0000050809':'SGO.PA',      // Saint-Gobain
+  'FR0000121014':'LR.PA',       // Legrand
+};
 
 // MOCK DATA
 const MOCK=[
@@ -344,8 +392,8 @@ function lvl(d){const s=sc(d);if(s>=60||d.shortPct>=20)return'rouge';if(s>=35)re
 function bc(p){if(p>=20)return'var(--red)';if(p>=10)return'var(--orange)';if(p>=5)return'var(--yellow)';return'var(--muted)'}
 
 // SCREENER
-function applyS(){SF={alert:document.getElementById('fA').value,shortMin:+document.getElementById('fS').value,dtcMin:+document.getElementById('fD').value,trend:document.getElementById('fT').value,sig:document.getElementById('fSig').value};render()}
-function resetS(){['fA','fT','fSig'].forEach(id=>document.getElementById(id).value='');['fS','fD'].forEach(id=>document.getElementById(id).value=0);document.getElementById('fSv').textContent='0';document.getElementById('fDv').textContent='0';SF={alert:'',shortMin:0,dtcMin:0,trend:'',sig:''};render()}
+function applyS(){SF={alert:document.getElementById('fA').value,shortMin:+document.getElementById('fS').value,dtcMin:0,trend:'',sig:document.getElementById('fSig').value};render()}
+function resetS(){['fA','fSig'].forEach(id=>document.getElementById(id).value='');document.getElementById('fS').value=0;document.getElementById('fSv').textContent='0';SF={alert:'',shortMin:0,dtcMin:0,trend:'',sig:''};render()}
 function mS(d){const l=lvl(d);if(SF.alert&&l!==SF.alert)return false;if(d.shortPct<SF.shortMin)return false;if(d.dtc<SF.dtcMin)return false;if(SF.trend==='up'&&d.tendance30j<=0)return false;if(SF.trend==='dn'&&d.tendance30j>=0)return false;if(SF.sig==='vol'&&!d.volumeSpike)return false;if(SF.sig==='prix'&&!d.prixSpike)return false;if(SF.sig==='cover'&&!d.shortCover)return false;return true}
 
 function setTab(t,el){tab=t;document.querySelectorAll('.tab').forEach(b=>b.classList.remove('on'));el.classList.add('on');render()}
@@ -365,7 +413,17 @@ function render(){
     const pf=Math.min((d.shortPct/30)*100,100),color=bc(d.shortPct);
     const tc=d.tendance30j>0?'up':d.tendance30j<0?'dn':'fl',ts=d.tendance30j>0?'▲':d.tendance30j<0?'▼':'—';
     let sg='';if(d.volumeSpike)sg+='<span class="sig v">VOL×</span>';if(d.prixSpike)sg+='<span class="sig p2">PRIX↑</span>';if(d.shortCover)sg+='<span class="sig c">COVER</span>';if(d.dtc>7)sg+=`<span class="sig d">DTC${Math.round(d.dtc)}j</span>`;if(!sg)sg='<span style="color:var(--muted);font-size:10px">—</span>';
-    const ph=d.price?`<div class="pc2">${d.price.toFixed(2)}€<div class="pd ${d.priceDelta>=0?'p':'n'}">${d.priceDelta>=0?'+':''}${d.priceDelta?.toFixed(2)}%</div></div>`:'<span style="color:var(--muted);font-size:10px">—</span>';
+    const fmt=(v,dec=2)=>v!=null?(v>=0?'+':'')+v.toFixed(dec)+'%':null;
+    const dColor=(v)=>v==null?'var(--muted)':v>=0?'var(--green)':'var(--red)';
+    const ph=d.price?`<div class="pc2" style="min-width:110px">
+      <span style="font-weight:700">${d.price.toFixed(2)}€</span>
+      <div style="display:flex;gap:6px;margin-top:3px;flex-wrap:wrap">
+        ${d.priceDelta!=null?`<span style="font-size:9px;color:${dColor(d.priceDelta)};font-family:'Space Mono',monospace">${fmt(d.priceDelta)} J</span>`:''}
+        ${d.delta1w!=null?`<span style="font-size:9px;color:${dColor(d.delta1w)};font-family:'Space Mono',monospace">${fmt(d.delta1w)} 1S</span>`:''}
+        ${d.delta1m!=null?`<span style="font-size:9px;color:${dColor(d.delta1m)};font-family:'Space Mono',monospace">${fmt(d.delta1m)} 1M</span>`:''}
+        ${d.vol20avg?`<span style="font-size:9px;color:var(--muted);font-family:'Space Mono',monospace">Vol×${d.volumeSpike?'<span style="color:var(--blue)">⚡</span>':''}</span>`:''}
+      </div>
+    </div>`:'<span style="color:var(--muted);font-size:10px">—</span>';
     const tr=document.createElement('tr');tr.dataset.isin=d.isin;if(openISIN===d.isin)tr.classList.add('exp');
     tr.innerHTML=`<td class="tc"><div class="t">${d.emetteur}</div><div class="is">${d.isin}</div></td><td><div class="pw"><span class="pn" style="color:${color}">${d.shortPct.toFixed(2)}%</span><div class="bb"><div class="bf" style="width:${pf}%;background:${color}"></div></div></div></td><td><span class="tr2 ${tc}">${ts} ${Math.abs(d.tendance30j).toFixed(1)}%</span></td><td>${ph}</td><td><span style="font-family:'Space Mono',monospace;font-size:12px;color:${d.dtc>7?'var(--orange)':'var(--text2)'}">${d.dtc.toFixed(1)}j</span></td><td><div class="sigs">${sg}</div></td><td><div class="sr ${d._lv}">${d._sc}</div></td><td><span class="badge ${d._lv}"><span class="bd"></span>${lbls[d._lv]}</span></td>`;
     tr.addEventListener('click',()=>toggle(d));tb.appendChild(tr);
@@ -575,23 +633,50 @@ function toggle(d){
 
 // YAHOO FINANCE
 async function fetchYF(ticker){
-  // Essayer query2 aussi si query1 échoue
-  const urls=[
-    `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?range=30d&interval=1d`,
-    `https://query2.finance.yahoo.com/v8/finance/chart/${ticker}?range=30d&interval=1d`,
-  ];
-  let txt=null;
-  for(const url of urls){txt=await fetchP(url);if(txt)break}
-  if(!txt)return null;
+  // Proxy Vercel — on demande 1 mois de données
+  const proxyUrl=`https://squeeze-radar.vercel.app/api/yahoo?ticker=${ticker}`;
   try{
-    const j=JSON.parse(txt),res=j?.chart?.result?.[0];if(!res)return null;
+    const r=await fetch(proxyUrl,{signal:AbortSignal.timeout(10000)});
+    if(!r.ok)throw new Error('proxy error '+r.status);
+    const j=await r.json();
+    const res=j?.chart?.result?.[0];if(!res)return null;
     const q=res.indicators.quote[0];
-    const pts=q.close.map((c,i)=>({c,vol:q.volume[i],ts:res.timestamp[i]})).filter(x=>x.c!=null);
-    const last=pts.at(-1),prev=pts.at(-2);
-    const pd=prev?((last.c-prev.c)/prev.c)*100:0;
-    const v20=pts.slice(-21,-1).reduce((a,b)=>a+b.vol,0)/20;
-    return{price:last.c,priceDelta:pd,volumeSpike:last.vol>v20*3,prixSpike:Math.abs(pd)>10,hist:pts.map(x=>({date:new Date(x.ts*1000).toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'}),c:x.c}))};
-  }catch(e){return null}
+    const pts=q.close.map((c,i)=>({c,vol:q.volume[i]||0,ts:res.timestamp[i]})).filter(x=>x.c!=null);
+    if(!pts.length)return null;
+
+    const last   = pts.at(-1);
+    const prev1d = pts.at(-2);
+    const prev1w = pts.length>=6  ? pts.at(-6)  : null; // ~5 jours trading
+    const prev1m = pts.length>=22 ? pts.at(-22) : pts[0]; // ~21 jours trading
+
+    // Variations
+    const delta1d = prev1d ? ((last.c-prev1d.c)/prev1d.c)*100 : 0;
+    const delta1w = prev1w ? ((last.c-prev1w.c)/prev1w.c)*100 : null;
+    const delta1m = prev1m ? ((last.c-prev1m.c)/prev1m.c)*100 : null;
+
+    // Volume moyen 20j et spike
+    const vols20 = pts.slice(-21,-1).map(x=>x.vol).filter(v=>v>0);
+    const vol20avg = vols20.length ? vols20.reduce((a,b)=>a+b,0)/vols20.length : 0;
+    const volumeSpike = vol20avg>0 && last.vol>vol20avg*3;
+
+    return{
+      price:    last.c,
+      priceDelta: delta1d,   // variation J-1
+      delta1w,               // variation 1 semaine
+      delta1m,               // variation 1 mois
+      volume:   last.vol,
+      vol20avg,              // volume moyen 20j
+      volumeSpike,
+      prixSpike: Math.abs(delta1d)>10,
+      hist: pts.map(x=>({
+        date: new Date(x.ts*1000).toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'}),
+        c: x.c
+      }))
+    };
+  }catch(e){
+    console.warn('Yahoo proxy failed for',ticker,e.message);
+    return null;
+  }
 }
 
 // AMF PARSE
@@ -867,8 +952,18 @@ document.addEventListener('click',e=>{
   if(e.target===m)closeKeyPanel();
 });
 
-function saveKey(k){localStorage.setItem('claudeKey',k);document.getElementById('keyIcon').textContent=k?'✅':'🔑'}
-function getKey(){return document.getElementById('apiKey').value||localStorage.getItem('claudeKey')||''}
+function saveKey(k){
+  if(k&&k.trim()){
+    localStorage.setItem('claudeKey', k.trim());
+    updateKeyUI();
+  }
+}
+function getKey(){
+  // Priorité: champ input > localStorage
+  const inputVal = document.getElementById('apiKey')?.value?.trim();
+  if(inputVal) return inputVal;
+  return localStorage.getItem('claudeKey')||'';
+}
 async function claudeFetch(body){
   const key=getKey();
   if(!key){return null}
@@ -917,7 +1012,7 @@ async function fullRefresh(){
   // 2. Yahoo Finance
   setSt('Prix Yahoo Finance...');setDS('yf','wait','Yahoo: chargement...');
   let yfOk=0;
-  await Promise.all(DATA.slice(0,8).map(async d=>{const t=TMAP[d.isin];if(!t)return;const yf=await fetchYF(t);if(yf){Object.assign(d,yf);yfOk++}}));
+  await Promise.all(DATA.slice(0,20).map(async d=>{const t=TMAP[d.isin];if(!t)return;const yf=await fetchYF(t);if(yf){Object.assign(d,yf);yfOk++}}));
   setDS('yf',yfOk>0?'ok':'err',`Yahoo: ${yfOk>0?yfOk+' titres ✓':'erreur proxy'}`);
   // 3. Render
   // ═══════════════════════════════════════════════════
@@ -1089,11 +1184,17 @@ document.addEventListener('click', e=>{
 });
 
 // INIT — charger clé sauvegardée
-const savedKey = localStorage.getItem('claudeKey');
-if(savedKey){
-  const el=document.getElementById('apiKey');
-  if(el)el.value=savedKey;
-}
+// Charger clé sauvegardée — robuste
+(function loadSavedKey(){
+  try{
+    const k = localStorage.getItem('claudeKey');
+    if(k){
+      const el = document.getElementById('apiKey');
+      if(el) el.value = k;
+      console.log('Clé API chargée depuis localStorage');
+    }
+  }catch(e){ console.warn('localStorage non disponible:', e); }
+})();
 updateKeyUI();
 render();
 scheduleDaily();
