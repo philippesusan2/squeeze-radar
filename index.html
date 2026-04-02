@@ -134,10 +134,9 @@ td{padding:12px 13px;font-size:13px;vertical-align:middle}
 .rule{padding:9px 0;border-bottom:1px solid var(--border);font-size:12px;color:var(--text2);line-height:1.7}
 .rule:last-child{border-bottom:none}
 .rule strong{display:block;margin-bottom:2px}
-/* Scrollbars fines */
-::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar{width:6px;height:6px}
 ::-webkit-scrollbar-track{background:var(--bg2)}
-::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
 ::-webkit-scrollbar-thumb:hover{background:var(--muted)}
 
 @media(max-width:900px){.layout{grid-template-columns:1fr}.sboard{grid-template-columns:repeat(2,1fr)}.dgrid{grid-template-columns:1fr}main{padding:14px}}
@@ -1018,7 +1017,7 @@ async function fullRefresh(){
   // 2. Yahoo Finance
   setSt('Prix Yahoo Finance...');setDS('yf','wait','Yahoo: chargement...');
   let yfOk=0;
-  await Promise.all(DATA.slice(0,10).map(async d=>{const t=TMAP[d.isin];if(!t)return;const yf=await fetchYF(t);if(yf){Object.assign(d,yf);yfOk++}}));
+  await Promise.all(DATA.slice(0,20).map(async d=>{const t=TMAP[d.isin];if(!t)return;const yf=await fetchYF(t);if(yf){Object.assign(d,yf);yfOk++}}));
   setDS('yf',yfOk>0?'ok':'err',`Yahoo: ${yfOk>0?yfOk+' titres ✓':'erreur proxy'}`);
   // 3. Render
   // ═══════════════════════════════════════════════════
