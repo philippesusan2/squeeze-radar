@@ -970,9 +970,11 @@ function getKey(){
   return localStorage.getItem('claudeKey')||'';
 }
 async function claudeFetch(body){
-  // Appel via proxy Vercel — clé sécurisée côté serveur
-  const r=await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-  return await r.json();
+  return fetch('/api/claude',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(body)
+  }).then(r=>r.json()).catch(e=>null);
 }
 
 // CLAUDE AI ANALYZE
