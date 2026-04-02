@@ -155,6 +155,7 @@ td{padding:12px 13px;font-size:13px;vertical-align:middle}
 .alert-item .ah-msg{color:var(--text2)}
 .alert-item .ah-time{font-size:10px;color:var(--muted);margin-top:2px;font-family:'Space Mono',monospace}
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 </head>
 <body>
 <header>
@@ -210,7 +211,8 @@ td{padding:12px 13px;font-size:13px;vertical-align:middle}
       <div style="color:var(--muted);font-size:11px;text-align:center;padding:16px">Aucune alerte déclenchée</div>
     </div>
     <div class="modal-btns" style="margin-top:16px">
-      <button class="btn" onclick="testNotif()">🧪 Tester</button>
+      <button class="btn" onclick="testNotif()">🔔 Test push</button>
+      <button class="btn" onclick="sendDailyRecap()" style="border-color:var(--blue);color:var(--blue)">📧 Test email</button>
       <button class="btn pri" onclick="closeNotifPanel()">Fermer</button>
     </div>
   </div>
@@ -648,6 +650,115 @@ function parseAMF(csv){
   return result.length>0?result:null;
 }
 
+// ═══════════════════════════════════════════════════
+// EMAILJS CONFIG
+// ═══════════════════════════════════════════════════
+const EJS = {
+  serviceId:  'service_hip8wh3',
+  templateId: 'template_abnh4z8',
+  publicKey:  'KKevxPQfed8UGb4HY',
+  toEmail:    'philippesusan2@gmail.com'
+};
+
+// Init EmailJS
+(function(){ emailjs.init({ publicKey: EJS.publicKey }); })();
+
+async function sendAlertEmail(d, fonds, reduction){
+  try{
+    await emailjs.send(EJS.serviceId, EJS.templateId, {
+      name:         'SqueezeRadar',
+      email:        EJS.toEmail,
+      titre:        d.emetteur,
+      short_pct:    d.shortPct.toFixed(2),
+      tendance:     d.tendance30j>0?'+'+d.tendance30j.toFixed(2):d.tendance30j.toFixed(2),
+      dtc:          d.dtc.toFixed(1),
+      score:        sc(d),
+      fonds:        fonds||'Fonds non identifié',
+      reduction:    reduction||'N/A',
+      volume_spike: d.volumeSpike?'⚠️ Spike détecté (>3x moyenne)':'Normal',
+      prix_spike:   d.prixSpike?'⚠️ Hausse >10%':'Normal',
+    });
+    console.log('Email alerte envoyé pour', d.emetteur);
+    return true;
+  }catch(e){
+    console.error('Erreur email:', e);
+    return false;
+  }
+}
+
+async function sendDailyRecap(){
+  // Email récap quotidien — tous les titres >15% shortés
+  const alerts = DATA.filter(d=>d.shortPct>=15).sort((a,b)=>b.shortPct-a.shortPct);
+  if(!alerts.length){console.log('Pas de titres >15% pour le récap');return}
+  
+  const lignes = alerts.map(d=>
+    `${d.emetteur}: ${d.shortPct.toFixed(2)}% | Score: ${sc(d)}/100 | Tendance: ${d.tendance30j>0?'+':''}${d.tendance30j.toFixed(1)}%`
+  ).join('\n');
+
+  try{
+    await emailjs.send(EJS.serviceId, EJS.templateId, {
+      name:         'SqueezeRadar — Récap Quotidien',
+      email:        EJS.toEmail,
+      titre:        `${alerts.length} titre(s) sous surveillance`,
+      short_pct:    alerts[0]?.shortPct.toFixed(2)||'N/A',
+      tendance:     alerts[0]?.tendance30j.toFixed(1)||'N/A',
+      dtc:          alerts[0]?.dtc.toFixed(1)||'N/A',
+      score:        sc(alerts[0]||{})||'N/A',
+      fonds:        'Récap quotidien automatique',
+      reduction:    lignes,
+      volume_spike: `${alerts.filter(d=>d.volumeSpike).length} titre(s) avec spike volume`,
+      prix_spike:   `${alerts.filter(d=>d.prixSpike).length} titre(s) avec spike prix`,
+    });
+    console.log('Email récap quotidien envoyé');
+    showToast('📧 Récap quotidien envoyé à '+EJS.toEmail);
+  }catch(e){console.error('Erreur récap:', e)}
+}
+
+// Vérifier les alertes et envoyer email si déclenchées
+async function checkAndEmailAlerts(){
+  const rouge = DATA.filter(d=>{
+    // Signal: short >15% ET un fonds a réduit sa position (shortCover)
+    return d.shortPct>=15 && d.shortCover;
+  });
+  
+  for(const d of rouge){
+    const key = d.isin+'-email-'+new Date().toDateString();
+    if(localStorage.getItem(key))continue; // déjà envoyé aujourd'hui
+    
+    // Trouver le fonds qui a le plus réduit
+    const topFonds = d.holders[0]?.name||'Fonds non identifié';
+    const reduction = Math.abs(d.tendance30j).toFixed(2);
+    
+    const ok = await sendAlertEmail(d, topFonds, reduction);
+    if(ok){
+      localStorage.setItem(key, '1');
+      showToast('🚨 Email alerte envoyé — '+d.emetteur);
+    }
+  }
+}
+
+function showToast(msg){
+  const t=document.createElement('div');
+  t.textContent=msg;
+  t.style.cssText='position:fixed;bottom:24px;right:24px;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:12px 18px;border-radius:8px;font-family:Space Mono,monospace;font-size:12px;z-index:9999;box-shadow:0 8px 24px rgba(0,0,0,.4)';
+  document.body.appendChild(t);
+  setTimeout(()=>t.remove(),4000);
+}
+
+// Programmer le récap quotidien à 8h
+function scheduleDaily(){
+  const now=new Date();
+  const next8h=new Date(now);
+  next8h.setHours(8,0,0,0);
+  if(next8h<=now)next8h.setDate(next8h.getDate()+1);
+  const ms=next8h-now;
+  setTimeout(()=>{
+    sendDailyRecap();
+    setInterval(sendDailyRecap, 24*60*60*1000);
+  }, ms);
+  console.log('Récap quotidien programmé dans', Math.round(ms/3600000), 'heures');
+}
+
 // CLÉ API
 function saveKey(k){localStorage.setItem('claudeKey',k);document.getElementById('keyIcon').textContent=k?'✅':'🔑'}
 function getKey(){return document.getElementById('apiKey').value||localStorage.getItem('claudeKey')||''}
@@ -874,13 +985,17 @@ document.addEventListener('click', e=>{
 const savedKey = localStorage.getItem('claudeKey');
 if(savedKey){document.getElementById('apiKey').value=savedKey;document.getElementById('keyIcon').textContent='✅'}
 render();
+scheduleDaily();
 // Init alertes
 setTimeout(()=>{
   updateNotifUI();
   // Reprendre l'auto-check si les notifs étaient déjà activées
   if(Notification.permission==='granted')startAutoCheck();
 }, 500);
-  // 4. News
+  // 4. Vérifier alertes email
+  await checkAndEmailAlerts();
+  
+  // 5. News
   setSt('Actualités via Claude AI...');
   const alerts=DATA.filter(d=>['rouge','orange'].includes(lvl(d)));
   await fetchNews(alerts.length?alerts:DATA.slice(0,5));
