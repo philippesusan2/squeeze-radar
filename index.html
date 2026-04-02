@@ -400,6 +400,48 @@ function mS(d){const l=lvl(d);if(SF.alert&&l!==SF.alert)return false;if(d.shortP
 function setTab(t,el){tab=t;document.querySelectorAll('.tab').forEach(b=>b.classList.remove('on'));el.classList.add('on');render()}
 function doSort(k){if(sKey===k)sDir*=-1;else{sKey=k;sDir=-1};render()}
 
+function updateRow(d){
+  // Mise à jour au fil de l'eau d'une seule ligne sans re-rendre toute la table
+  const tr=document.querySelector(`tr[data-isin="${d.isin}"]`);
+  if(!tr)return;
+  
+  // Mettre à jour la cellule prix (4ème td)
+  const cells=tr.querySelectorAll('td');
+  if(cells.length<4)return;
+  
+  const dColor=v=>v==null?'var(--muted)':v>=0?'var(--green)':'var(--red)';
+  const fmt=v=>v==null?'—':(v>=0?'+':'')+v.toFixed(2)+'%';
+  
+  if(d.price){
+    cells[3].innerHTML=`<div class="pc2" style="min-width:110px">
+      <span style="font-weight:700">${d.price.toFixed(2)}€</span>
+      <div style="display:flex;gap:4px;margin-top:3px;flex-wrap:wrap">
+        <span style="font-size:9px;color:${dColor(d.priceDelta)};font-family:'Space Mono',monospace">${fmt(d.priceDelta)} J</span>
+        ${d.delta1w!=null?`<span style="font-size:9px;color:${dColor(d.delta1w)};font-family:'Space Mono',monospace">${fmt(d.delta1w)} 1S</span>`:''}
+        ${d.delta1m!=null?`<span style="font-size:9px;color:${dColor(d.delta1m)};font-family:'Space Mono',monospace">${fmt(d.delta1m)} 1M</span>`:''}
+        ${d.volumeSpike?'<span style="font-size:9px;color:var(--blue);font-family:Space Mono,monospace">Vol×</span>':''}
+      </div>
+    </div>`;
+  }
+  
+  // Mettre à jour PSI (6ème td)
+  if(d.psi!=null&&cells.length>5){
+    cells[5].innerHTML=d.psi>0
+      ?`<div style="font-family:'Space Mono',monospace;font-size:12px;font-weight:700;color:${psiColor(d.psi)}">${d.psi}%<div style="font-size:9px;opacity:.8">${psiLevel(d.psi)}</div></div>`
+      :'<span style="color:var(--muted);font-size:10px">—</span>';
+  }
+  
+  // Mettre à jour les signaux (7ème td)
+  if(cells.length>6){
+    let sg='';
+    if(d.volumeSpike)sg+='<span class="sig v">VOL×</span>';
+    if(d.prixSpike)sg+='<span class="sig p2">PRIX↑</span>';
+    if(d.shortCover)sg+='<span class="sig c">COVER</span>';
+    if(d.dtc>7)sg+=`<span class="sig d">DTC${Math.round(d.dtc)}j</span>`;
+    cells[6].innerHTML=sg?`<div class="sigs">${sg}</div>`:'<span style="color:var(--muted);font-size:10px">—</span>';
+  }
+}
+
 function render(){
   const rows=DATA.map(d=>({...d,_sc:sc(d),_lv:lvl(d)})).filter(d=>(tab==='all'||d._lv===tab)&&mS(d)).sort((a,b)=>{let va=a[sKey]??0,vb=b[sKey]??0;if(typeof va==='string'){va=va.toLowerCase();vb=vb.toLowerCase()}return sDir*(va>vb?1:va<vb?-1:0)});
   const all=DATA.map(d=>lvl(d));
@@ -1294,4 +1336,18 @@ function setDS(id,st,txt){document.getElementById('d-'+id+'-t').textContent=txt;
 render();
 </script>
 </body>
-</html>
+</html>function psiLevel(psi){
+  if(!psi||psi<5)return'neutre';
+  if(psi<15)return'modere';
+  if(psi<35)return'fort';
+  return'critique';
+}
+function psiColor(psi){
+  const l=psiLevel(psi);
+  return l==='critique'?'var(--red)':l==='fort'?'var(--orange)':l==='modere'?'var(--yellow)':'var(--muted)';
+}
+function psiLabel(psi){
+  const l=psiLevel(psi);
+  return l==='critique'?'🔴 Critique':l==='fort'?'🟠 Fort':l==='modere'?'🟡 Modéré':'⚪ Neutre';
+}
+
