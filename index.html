@@ -364,6 +364,7 @@ function render(){
 }
 
 function detail(d){
+  // Positions actuelles
   const hl=d.holders.sort((a,b)=>b.pct-a.pct).map(h=>`
     <div class="hrow">
       <div style="flex:1">
@@ -382,32 +383,74 @@ function detail(d){
   const topHolder=d.holders[0]?.name||'—';
   const concentration=d.holders.length>0?((d.holders[0]?.pct||0)/d.shortPct*100).toFixed(0):0;
 
+  // Mouvements par fonds (delta 30j)
+  const fm = d.fundMovements||[];
+  const fmHTML = fm.length ? fm.map(f=>{
+    const dSign = f.delta>0?'+':'';
+    const dColor = f.delta<-0.2?'var(--green)':f.delta>0.2?'var(--red)':'var(--muted)';
+    const badge = f.isCover
+      ? '<span style="background:rgba(0,229,160,.1);color:var(--green);border:1px solid rgba(0,229,160,.3);padding:1px 6px;border-radius:3px;font-size:9px;font-family:Space Mono,monospace">COVER ▼</span>'
+      : f.isNew
+      ? '<span style="background:rgba(255,51,85,.1);color:var(--red);border:1px solid rgba(255,51,85,.3);padding:1px 6px;border-radius:3px;font-size:9px;font-family:Space Mono,monospace">NOUVEAU</span>'
+      : f.isIncreasing
+      ? '<span style="background:rgba(255,140,66,.1);color:var(--orange);border:1px solid rgba(255,140,66,.3);padding:1px 6px;border-radius:3px;font-size:9px;font-family:Space Mono,monospace">RENFORCE ▲</span>'
+      : '';
+    return `<div class="hrow" style="flex-direction:column;gap:4px">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div class="hn" style="max-width:180px">${f.name}</div>
+        ${badge}
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="font-size:11px;color:var(--text2)">
+          ${f.prev30j>0?f.prev30j.toFixed(2)+'% → ':'Nouveau → '}
+          <strong style="color:var(--orange)">${f.current.toFixed(2)}%</strong>
+        </div>
+        <div style="font-family:Space Mono,monospace;font-size:13px;font-weight:700;color:${dColor}">
+          ${dSign}${f.delta.toFixed(2)}%
+        </div>
+      </div>
+    </div>`;
+  }).join('') : '<div style="color:var(--muted);font-size:11px;padding:8px">Données insuffisantes pour calculer les variations</div>';
+
+  const coverSignals = fm.filter(f=>f.isCover);
+  const coverAlert = coverSignals.length>0
+    ? `<div style="background:rgba(0,229,160,.07);border:1px solid rgba(0,229,160,.2);border-radius:6px;padding:8px 10px;font-size:11px;margin-top:6px">
+        🟢 <strong style="color:var(--green)">${coverSignals.map(f=>f.name.split(' ')[0]).join(', ')}</strong> 
+        réduit${coverSignals.length>1?'ent':''} sa position — signal de rachat
+       </div>`
+    : '';
+
   return`<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:2px">
     <!-- COL GAUCHE: graphiques -->
     <div style="display:flex;flex-direction:column;gap:12px">
       <div>
-        <div class="dst">📈 Cours & volumes — 30j</div>
+        <div class="dst">📈 Cours — 30j</div>
         <div class="cwrap"><canvas id="ch-${d.isin}"></canvas></div>
       </div>
       <div>
-        <div class="dst">📉 Évolution short interest — historique</div>
+        <div class="dst">📉 Short interest — 90j</div>
         <div class="cwrap"><canvas id="sh-${d.isin}"></canvas></div>
       </div>
     </div>
-    <!-- COL DROITE: détenteurs + IA -->
-    <div style="display:flex;flex-direction:column;gap:12px">
+    <!-- COL DROITE -->
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <!-- Mouvements par fonds -->
       <div>
         <div class="dst" style="display:flex;justify-content:space-between;align-items:center">
-          <span>🏦 Détenteurs (${totalHolders})</span>
+          <span>🔄 Mouvements par fonds — 30j</span>
           <span style="font-size:9px;color:var(--text2)">Total: <strong style="color:var(--orange)">${d.shortPct.toFixed(2)}%</strong></span>
         </div>
-        <div class="hlist" style="max-height:180px;overflow-y:auto">${hl}</div>
-        <div style="margin-top:8px;padding:8px 10px;background:var(--bg3);border-radius:6px;border:1px solid var(--border);font-size:11px;color:var(--text2)">
-          Top vendeur: <strong style="color:var(--text)">${topHolder}</strong> · Concentration: <strong style="color:var(--orange)">${concentration}%</strong> du total
-        </div>
+        <div class="hlist" style="max-height:160px;overflow-y:auto">${fmHTML}</div>
+        ${coverAlert}
       </div>
+      <!-- Positions actuelles -->
       <div>
-        <div class="dst">✦ Analyse IA — Signal squeeze</div>
+        <div class="dst">🏦 Positions actuelles (${totalHolders} fonds)</div>
+        <div class="hlist" style="max-height:120px;overflow-y:auto">${hl}</div>
+      </div>
+      <!-- IA -->
+      <div>
+        <div class="dst">✦ Analyse IA</div>
         <div class="aibox">
           <div class="ailbl">✦ Claude Analysis</div>
           <div class="aitxt ld" id="ai-${d.isin}">Chargement...</div>
@@ -635,12 +678,43 @@ function parseAMF(csv){
       // Historique réel pour le graphique
       const shortHistory = buildShortHistoryReal(d.isin, d.shortPct);
 
+      // Mouvements par fonds : comparer position actuelle vs 30j ago
+      const fundMovements = d.holders.map(h=>{
+        // Trouver la position de ce fonds il y a 30j
+        const rows30ago = allRows.filter(r=>
+          r.isin===d.isin && r.det===h.name
+        );
+        let pct30ago = 0;
+        rows30ago.forEach(r=>{
+          const pub=parseDate(r.datePub);
+          const fin=parseDate(r.dateFin);
+          if(!pub)return;
+          if(pub>d30ago)return;
+          if(fin&&fin<d30ago)return;
+          const pos=parseFloat(r.ratio.replace(',','.'));
+          if(!isNaN(pos)&&pos>pct30ago)pct30ago=pos;
+        });
+        const delta = h.pct - pct30ago;
+        return {
+          name: h.name,
+          current: h.pct,
+          prev30j: pct30ago,
+          delta: +delta.toFixed(2),
+          date: h.date,
+          // Signal fort: fonds réduit de >0.2% sur un titre déjà >10% shorté
+          isCover: delta < -0.2,
+          isNew: pct30ago===0 && h.pct>0,
+          isIncreasing: delta > 0.2,
+        };
+      }).sort((a,b)=>a.delta-b.delta); // trier par réduction (plus forte en premier)
+
       return{
         ...d,
         tendance30j,
-        shortCover,
+        shortCover: fundMovements.some(f=>f.isCover),
         shortHistory, // historique réel AMF
-        dtc:+(Math.random()*10+1).toFixed(1), // DTC calculé après Yahoo
+        fundMovements, // mouvements par fonds
+        dtc:+(Math.random()*10+1).toFixed(1),
         volumeSpike:false, prixSpike:false,
         price:null, priceDelta:null, hist:null
       };
